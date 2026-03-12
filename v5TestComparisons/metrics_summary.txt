@@ -1,0 +1,27 @@
+=== Summary metrics (open vs closed) ===
+
+                                open       closed
+duration_s                   1475.26      1475.75
+median_dt_s                 0.500076     0.514284
+f_mean_hz                  -0.920639    -0.464966
+f_std_hz                     1.96962      1.57387
+f_std_robust_hz              1.85181      1.83275
+f_rms_hz                     2.17416      1.64112
+f_drift_slope_hz_per_s   -0.00357557  -0.00152671
+f_resid_rms_hz               1.25041      1.43405
+tau_mean_s              -3.17417e-07 -7.81162e-07
+tau_std_s                4.02823e-06   2.7018e-06
+tau_rms_s                4.04072e-06  2.81246e-06
+tau_drift_slope_s_per_s  -5.5742e-09  -3.3289e-09
+tau_resid_rms_s          3.25548e-06  2.30222e-06
+coh_db_median               -46.5776     -19.0816
+snr_fft_db_median            61.5584      64.3304
+u_rms_hz                         NaN      491.953
+dac_step_rms_codes                 0       80.529
+dac_span_codes                     0         1137
+
+Interpretation tips:
+- f_drift_slope_hz_per_s: closer to 0 is better (less drift).
+- f_resid_rms_hz: lower is better (less short-term noise after removing drift).
+- tau_resid_rms_s: lower is better (time/phase error stability).
+- Allan deviation: closed should beat open at larger τ if drift is suppressed.

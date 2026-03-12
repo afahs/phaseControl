@@ -1,0 +1,24 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Local measurement/runtime artifacts
+beaconLogs/
+NotebookBased/*.csv
+NotebookBased/*.json
+NotebookBased/*.png
+
+# Historical experiment outputs
+v*Test/*.csv
+csvTests/*.csv
+signalTest/*.csv
+signalTest/*.png
+v5TestComparisons/*.png
+v5TestComparisons/*.csv
+
+# OS/editor noise
+.DS_Store
