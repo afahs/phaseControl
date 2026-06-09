@@ -1,0 +1,453 @@
+{
+  "input_csv": "/home/rrrodriguez13/phaseControl/first_stage_demo/logs/pseudo_open_loop_after_30s_freq_centering_detected_tone_50mhz_5min_20260514.csv",
+  "rf_hz": 50000000.0,
+  "amp_min": 0.02,
+  "coherence_min": 0.2,
+  "phase_band_rad": 1.0,
+  "configs": [
+    {
+      "label": "fll_slow_frequency_centering",
+      "kind": "first-order FLL from measured f_off_hz",
+      "bandwidth_hz": 0.05,
+      "damping": 1.0,
+      "max_freq_hz": 250.0,
+      "fll_alpha": 0.0
+    },
+    {
+      "label": "pll_fast_phase_lock",
+      "kind": "type-II software PLL/NCO",
+      "bandwidth_hz": 50.0,
+      "damping": 0.707,
+      "max_freq_hz": 250.0,
+      "fll_alpha": 0.0
+    }
+  ],
+  "metrics": {
+    "open_loop": {
+      "label": "open_loop",
+      "rows": 150000,
+      "valid_fraction": 0.9999933333333333,
+      "duration_s": 299.99800000000005,
+      "phase_slope_hz": 21.069178843086124,
+      "mean_abs_residual_freq_hz": 34.87618273097256,
+      "median_abs_residual_freq_hz": 28.724486614444903,
+      "p95_abs_residual_freq_hz": 87.87963183104638,
+      "p99_abs_residual_freq_hz": 137.66105477940368,
+      "mean_coherence": 0.9754802384030448,
+      "p05_coherence": 0.927469793116766,
+      "raw_timing_pp_ns": 142878.13169138765,
+      "timing_resid_rms_ns": 4696.853320945395,
+      "timing_resid_p95_abs_ns": 8113.559201908149,
+      "wrapped_phase_rms_rad": 1.8213391333774547,
+      "wrapped_phase_p95_abs_rad": 2.9851092248891598,
+      "phase_band_rad": 1.0,
+      "phase_band_fraction": 0.31339333333333336,
+      "best_phase_band_dwell_s": 0.12000000000000455,
+      "minute_segments": [
+        {
+          "start_s": 0.0,
+          "phase_slope_hz": 31.710369498985955,
+          "median_abs_residual_freq_hz": 33.61994910159886,
+          "timing_resid_rms_ns": 4553.583257692423,
+          "phase_band_fraction": 0.31453333333333333
+        },
+        {
+          "start_s": 60.0,
+          "phase_slope_hz": 14.904520066985176,
+          "median_abs_residual_freq_hz": 23.613288107371734,
+          "timing_resid_rms_ns": 4413.577115041598,
+          "phase_band_fraction": 0.313
+        },
+        {
+          "start_s": 120.0,
+          "phase_slope_hz": 26.868909799174084,
+          "median_abs_residual_freq_hz": 28.944692490724066,
+          "timing_resid_rms_ns": 2691.4061567683766,
+          "phase_band_fraction": 0.31501050035001166
+        },
+        {
+          "start_s": 180.0,
+          "phase_slope_hz": 12.273619753713533,
+          "median_abs_residual_freq_hz": 24.863197675013772,
+          "timing_resid_rms_ns": 5276.699031851086,
+          "phase_band_fraction": 0.307
+        },
+        {
+          "start_s": 240.0,
+          "phase_slope_hz": 32.60359256937666,
+          "median_abs_residual_freq_hz": 34.19998883648944,
+          "timing_resid_rms_ns": 5916.05092030659,
+          "phase_band_fraction": 0.31743333333333335
+        }
+      ],
+      "top_wrapped_phase_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 2.226666666663945,
+          "period_s": 0.4491017964077345,
+          "psd": 146.40601854010595
+        },
+        {
+          "hz": 9.196666666655426,
+          "period_s": 0.10873504893090491,
+          "psd": 91.45644696550042
+        },
+        {
+          "hz": 8.833333333322537,
+          "period_s": 0.11320754716994968,
+          "psd": 83.86237709187158
+        },
+        {
+          "hz": 8.5099999999896,
+          "period_s": 0.1175088131611307,
+          "psd": 82.33775452092901
+        },
+        {
+          "hz": 4.493333333327842,
+          "period_s": 0.2225519287836548,
+          "psd": 77.3333643021254
+        },
+        {
+          "hz": 7.11333333332464,
+          "period_s": 0.14058106841629178,
+          "psd": 77.12424700761633
+        },
+        {
+          "hz": 11.499999999985945,
+          "period_s": 0.08695652173923671,
+          "psd": 76.8086343896239
+        },
+        {
+          "hz": 15.989999999980459,
+          "period_s": 0.06253908692940727,
+          "psd": 75.65131780021515
+        }
+      ],
+      "top_raw_timing_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 0.026666666666634076,
+          "period_s": 37.50000000004583,
+          "psd": 2551636172.862038
+        },
+        {
+          "hz": 0.13666666666649965,
+          "period_s": 7.317073170740649,
+          "psd": 6073265.471642022
+        },
+        {
+          "hz": 0.3266666666662674,
+          "period_s": 3.0612244897996597,
+          "psd": 913185.5284705135
+        },
+        {
+          "hz": 3.096666666662882,
+          "period_s": 0.322927879440653,
+          "psd": 302992.92763414513
+        },
+        {
+          "hz": 0.4333333333328037,
+          "period_s": 2.3076923076951283,
+          "psd": 242862.16160337062
+        },
+        {
+          "hz": 0.589999999999279,
+          "period_s": 1.6949152542393595,
+          "psd": 163559.61531597306
+        },
+        {
+          "hz": 0.7433333333324249,
+          "period_s": 1.345291479822272,
+          "psd": 96239.50128634367
+        },
+        {
+          "hz": 3.19666666666276,
+          "period_s": 0.31282586027149806,
+          "psd": 89541.0986764694
+        }
+      ]
+    },
+    "fll_slow_frequency_centering": {
+      "label": "fll_slow_frequency_centering",
+      "rows": 150000,
+      "valid_fraction": 0.9999866666666667,
+      "duration_s": 299.99800000000005,
+      "phase_slope_hz": -0.029751743949180055,
+      "mean_abs_residual_freq_hz": 26.820196138506656,
+      "median_abs_residual_freq_hz": 20.894692492927675,
+      "p95_abs_residual_freq_hz": 72.03262510965848,
+      "p99_abs_residual_freq_hz": 117.49208877922274,
+      "mean_coherence": 0.9754802411043089,
+      "p05_coherence": 0.9274697616912291,
+      "raw_timing_pp_ns": 4731.043255177274,
+      "timing_resid_rms_ns": 835.9701451994447,
+      "timing_resid_p95_abs_ns": 1342.8331166087773,
+      "wrapped_phase_rms_rad": 1.809716614645333,
+      "wrapped_phase_p95_abs_rad": 2.9833386906699895,
+      "phase_band_rad": 1.0,
+      "phase_band_fraction": 0.32146,
+      "best_phase_band_dwell_s": 0.1200000000000001,
+      "minute_segments": [
+        {
+          "start_s": 0.0,
+          "phase_slope_hz": 0.28190485946055777,
+          "median_abs_residual_freq_hz": 19.856864796153427,
+          "timing_resid_rms_ns": 523.0605847799865,
+          "phase_band_fraction": 0.32134404480149337
+        },
+        {
+          "start_s": 60.0,
+          "phase_slope_hz": -1.5145384294150568,
+          "median_abs_residual_freq_hz": 19.990145819860572,
+          "timing_resid_rms_ns": 689.8079880845339,
+          "phase_band_fraction": 0.321
+        },
+        {
+          "start_s": 120.0,
+          "phase_slope_hz": 1.3924746823896224,
+          "median_abs_residual_freq_hz": 20.009776476735386,
+          "timing_resid_rms_ns": 530.9767761445208,
+          "phase_band_fraction": 0.325877529250975
+        },
+        {
+          "start_s": 180.0,
+          "phase_slope_hz": -2.267299841897632,
+          "median_abs_residual_freq_hz": 20.53604998479026,
+          "timing_resid_rms_ns": 923.5483109003363,
+          "phase_band_fraction": 0.31743333333333335
+        },
+        {
+          "start_s": 240.0,
+          "phase_slope_hz": 2.3889112289346257,
+          "median_abs_residual_freq_hz": 24.652569385565958,
+          "timing_resid_rms_ns": 1268.8172015942346,
+          "phase_band_fraction": 0.32166666666666666
+        }
+      ],
+      "top_wrapped_phase_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 0.12333333333318261,
+          "period_s": 8.108108108118017,
+          "psd": 240.8980795113636
+        },
+        {
+          "hz": 6.07999999999257,
+          "period_s": 0.16447368421072733,
+          "psd": 209.58432722736782
+        },
+        {
+          "hz": 8.63999999998944,
+          "period_s": 0.1157407407408822,
+          "psd": 194.36260671886058
+        },
+        {
+          "hz": 3.4233333333291496,
+          "period_s": 0.2921129503411554,
+          "psd": 183.72236506973763
+        },
+        {
+          "hz": 4.536666666661122,
+          "period_s": 0.2204261572375949,
+          "psd": 183.4398816171701
+        },
+        {
+          "hz": 5.0933333333271085,
+          "period_s": 0.19633507853427137,
+          "psd": 179.3564362638115
+        },
+        {
+          "hz": 1.5333333333314594,
+          "period_s": 0.6521739130442753,
+          "psd": 179.2818913725163
+        },
+        {
+          "hz": 5.606666666659814,
+          "period_s": 0.17835909631413,
+          "psd": 177.06363986665207
+        }
+      ],
+      "top_raw_timing_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 0.023333333333304816,
+          "period_s": 42.857142857195235,
+          "psd": 475508099.5202155
+        },
+        {
+          "hz": 0.13666666666649965,
+          "period_s": 7.317073170740649,
+          "psd": 5646065.159425347
+        },
+        {
+          "hz": 0.3266666666662674,
+          "period_s": 3.0612244897996597,
+          "psd": 888286.2680566863
+        },
+        {
+          "hz": 3.096666666662882,
+          "period_s": 0.322927879440653,
+          "psd": 305560.84998241183
+        },
+        {
+          "hz": 0.4333333333328037,
+          "period_s": 2.3076923076951283,
+          "psd": 242262.47065708812
+        },
+        {
+          "hz": 0.589999999999279,
+          "period_s": 1.6949152542393595,
+          "psd": 168228.99147509394
+        },
+        {
+          "hz": 0.7433333333324249,
+          "period_s": 1.345291479822272,
+          "psd": 91109.20184387304
+        },
+        {
+          "hz": 3.19666666666276,
+          "period_s": 0.31282586027149806,
+          "psd": 90770.68355826446
+        }
+      ]
+    },
+    "pll_fast_phase_lock": {
+      "label": "pll_fast_phase_lock",
+      "rows": 150000,
+      "valid_fraction": 0.9999933333333333,
+      "duration_s": 299.99800000000005,
+      "phase_slope_hz": 7.280106760627186e-06,
+      "mean_abs_residual_freq_hz": 8.01269130563413,
+      "median_abs_residual_freq_hz": 6.636019752822701,
+      "p95_abs_residual_freq_hz": 20.034462437372913,
+      "p99_abs_residual_freq_hz": 27.471183366169143,
+      "mean_coherence": 0.9754802384030448,
+      "p05_coherence": 0.927469793116766,
+      "raw_timing_pp_ns": 12.546240098590657,
+      "timing_resid_rms_ns": 0.6889503975666739,
+      "timing_resid_p95_abs_ns": 1.4027910931579697,
+      "wrapped_phase_rms_rad": 0.2638058516813187,
+      "wrapped_phase_p95_abs_rad": 0.5059526591574702,
+      "phase_band_rad": 1.0,
+      "phase_band_fraction": 0.99648,
+      "best_phase_band_dwell_s": 55.376000000000005,
+      "minute_segments": [
+        {
+          "start_s": 0.0,
+          "phase_slope_hz": 6.213710341464857e-05,
+          "median_abs_residual_freq_hz": 6.468788002219955,
+          "timing_resid_rms_ns": 0.5807951781419582,
+          "phase_band_fraction": 0.999
+        },
+        {
+          "start_s": 60.0,
+          "phase_slope_hz": 0.0004303926070793161,
+          "median_abs_residual_freq_hz": 6.604993007600722,
+          "timing_resid_rms_ns": 0.6086774948364815,
+          "phase_band_fraction": 0.9998
+        },
+        {
+          "start_s": 120.0,
+          "phase_slope_hz": -0.0004033343191255443,
+          "median_abs_residual_freq_hz": 6.652348260258877,
+          "timing_resid_rms_ns": 0.5997057861379487,
+          "phase_band_fraction": 0.9987332911097037
+        },
+        {
+          "start_s": 180.0,
+          "phase_slope_hz": 0.0006810696687060389,
+          "median_abs_residual_freq_hz": 6.821856587015844,
+          "timing_resid_rms_ns": 0.6586172003850305,
+          "phase_band_fraction": 0.9995666666666667
+        },
+        {
+          "start_s": 240.0,
+          "phase_slope_hz": -0.0008295032631318026,
+          "median_abs_residual_freq_hz": 6.668658359778729,
+          "timing_resid_rms_ns": 0.9338224883627492,
+          "phase_band_fraction": 0.9853333333333333
+        }
+      ],
+      "top_wrapped_phase_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 3.096666666662882,
+          "period_s": 0.322927879440653,
+          "psd": 11.630976314568379
+        },
+        {
+          "hz": 0.023333333333304816,
+          "period_s": 42.857142857195235,
+          "psd": 6.303393005536389
+        },
+        {
+          "hz": 3.19666666666276,
+          "period_s": 0.31282586027149806,
+          "psd": 3.696716543295318
+        },
+        {
+          "hz": 12.596666666651272,
+          "period_s": 0.07938608097389961,
+          "psd": 2.3453539319684187
+        },
+        {
+          "hz": 12.393333333318187,
+          "period_s": 0.08068854222710238,
+          "psd": 1.67681418100331
+        },
+        {
+          "hz": 6.373333333325545,
+          "period_s": 0.15690376569056833,
+          "psd": 1.5409533264704167
+        },
+        {
+          "hz": 6.223333333325727,
+          "period_s": 0.16068559185879308,
+          "psd": 1.3036979537664124
+        },
+        {
+          "hz": 9.559999999988316,
+          "period_s": 0.1046025104603789,
+          "psd": 1.0347073563905373
+        }
+      ],
+      "top_raw_timing_psd_peaks_0p02_to_20hz": [
+        {
+          "hz": 3.096666666662882,
+          "period_s": 0.322927879440653,
+          "psd": 117.84642871080636
+        },
+        {
+          "hz": 0.023333333333304816,
+          "period_s": 42.857142857195235,
+          "psd": 63.86672402837801
+        },
+        {
+          "hz": 3.19666666666276,
+          "period_s": 0.31282586027149806,
+          "psd": 37.45556957568932
+        },
+        {
+          "hz": 12.596666666651272,
+          "period_s": 0.07938608097389961,
+          "psd": 23.763403644725113
+        },
+        {
+          "hz": 12.393333333318187,
+          "period_s": 0.08068854222710238,
+          "psd": 16.989679756751265
+        },
+        {
+          "hz": 6.373333333325545,
+          "period_s": 0.15690376569056833,
+          "psd": 15.613121497558037
+        },
+        {
+          "hz": 6.223333333325727,
+          "period_s": 0.16068559185879308,
+          "psd": 13.209221978770662
+        },
+        {
+          "hz": 9.559999999988316,
+          "period_s": 0.1046025104603789,
+          "psd": 10.48377740729235
+        }
+      ]
+    }
+  }
+}

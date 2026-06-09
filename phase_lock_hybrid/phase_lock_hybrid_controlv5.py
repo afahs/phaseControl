@@ -244,7 +244,7 @@ def main():
                     help="Limit magnitude of each coarse I2C step (Hz).")
     ap.add_argument("--max_coarse_offset_hz", type=float, default=20_000.0,
                     help="Absolute clamp: limit total coarse deviation from nominal f_out_hz (Hz).")
-    ap.add_argument("--coarse_settle_s", type=float, default=0.05,
+    ap.add_argument("--coarse_settle_s", type=float, default=0.0,
                     help="Optional delay after I2C frequency update (seconds).")
     ap.add_argument("--reset_i_on_coarse", action="store_true",
                     help="Reset PI integrator when a coarse step is applied (anti-windup).")

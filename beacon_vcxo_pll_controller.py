@@ -176,7 +176,7 @@ def clock_init_28p8(obj, apr_ppm=120):
     obj.init_clock_vcxo_28p8mhz(apr_ppm=int(apr_ppm))
 
 
-def clock_set_coarse_hz(obj, f_hz, settle_s=0.02):
+def clock_set_coarse_hz(obj, f_hz, settle_s=0.0):
     return float(obj.set_clock0_freq_hz(float(f_hz), settle_s=float(settle_s)))
 
 
@@ -707,7 +707,7 @@ class ControlParams:
     clock0_nom_hz: float = 28.8e6
     clock0_cmd_hz_min: float = 28.75e6
     clock0_cmd_hz_max: float = 28.85e6
-    coarse_settle_s: float = 0.02
+    coarse_settle_s: float = 0.0
     fine_settle_s: float = 0.0
 
     dac_code_min: int = 1024
@@ -1097,7 +1097,7 @@ def build_arg_parser():
     p.add_argument("--clock0_nom_hz", type=float, default=28.8e6)
     p.add_argument("--clock0_min_hz", type=float, default=28.75e6)
     p.add_argument("--clock0_max_hz", type=float, default=28.85e6)
-    p.add_argument("--coarse_settle_s", type=float, default=0.02)
+    p.add_argument("--coarse_settle_s", type=float, default=0.0)
     p.add_argument("--fine_settle_s", type=float, default=0.0)
 
     p.add_argument("--dac_min", type=int, default=1024)

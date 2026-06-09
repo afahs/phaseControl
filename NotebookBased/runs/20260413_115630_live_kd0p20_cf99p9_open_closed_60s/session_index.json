@@ -1,0 +1,16 @@
+[
+  {
+    "mode": "monitor",
+    "nsamp": 8192,
+    "csv_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/monitor/nsamp_8192/monitor_nsamp8192.csv",
+    "summary_json_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/monitor/nsamp_8192/monitor_nsamp8192_summary.json",
+    "summary_csv_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/monitor/nsamp_8192/monitor_nsamp8192_summary.csv"
+  },
+  {
+    "mode": "pid",
+    "nsamp": 8192,
+    "csv_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/pid/nsamp_8192/pid_nsamp8192.csv",
+    "summary_json_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/pid/nsamp_8192/pid_nsamp8192_summary.json",
+    "summary_csv_path": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260413_115630_live_kd0p20_cf99p9_open_closed_60s/pid/nsamp_8192/pid_nsamp8192_summary.csv"
+  }
+]

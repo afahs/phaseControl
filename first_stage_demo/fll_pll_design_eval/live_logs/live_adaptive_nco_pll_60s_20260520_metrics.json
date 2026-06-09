@@ -1,0 +1,36 @@
+{
+  "rows": 30000,
+  "duration_s": 59.998000000000005,
+  "valid_fraction": 0.9998333333333334,
+  "phase_slope_hz": 0.7169378086702383,
+  "reconstructed_phase_slope_hz": 3.8124295692930636,
+  "timing_resid_rms_ns": 74.33548127975324,
+  "wrapped_phase_rms_rad": 0.8400702613117041,
+  "wrapped_phase_p95_abs_rad": 1.791393501034349,
+  "reconstructed_wrapped_phase_rms_rad": 1.8037716492993037,
+  "reconstructed_wrapped_phase_p95_abs_rad": 2.978517441608409,
+  "phase_error_p95_abs_rad": 2.9724440639615826,
+  "phase_band_rad": 1.0,
+  "phase_band_fraction": 0.8078,
+  "best_phase_band_dwell_s": 0.26400000000000023,
+  "mean_residual_freq_hz": 0.5475084166323505,
+  "p95_abs_residual_freq_hz": 134.0581188475219,
+  "mean_nco_freq_correction_hz": -0.824500732121241,
+  "p95_abs_nco_freq_correction_hz": 75.17583720678653,
+  "mean_coherence": 0.9604462947930212,
+  "p05_coherence": 0.871752635222428,
+  "mean_amp": 0.45760613700189084,
+  "control_cmd_min": 2031.0,
+  "control_cmd_max": 2050.0,
+  "control_cmd_final": 2034.0,
+  "phase_mode_counts": {
+    "ramp": 16702,
+    "acquire": 10580,
+    "ramp_no_phase": 2713,
+    "hold_invalid": 5
+  },
+  "control_stage_counts": {
+    "phase": 19415,
+    "acquisition": 10585
+  }
+}

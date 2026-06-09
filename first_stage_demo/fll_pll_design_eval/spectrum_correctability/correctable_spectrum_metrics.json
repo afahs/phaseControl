@@ -1,0 +1,113 @@
+{
+  "input_trace": "/home/rrrodriguez13/phaseControl/first_stage_demo/logs/pseudo_open_loop_after_30s_freq_centering_detected_tone_50mhz_5min_20260514.csv",
+  "latency_summary": "/home/rrrodriguez13/phaseControl/first_stage_demo/logs/actuator_latency_50mhz_step5_20260427.txt",
+  "rows": 149999,
+  "duration_s": 299.99800000000005,
+  "dt_s": 0.0020000000000024443,
+  "sample_rate_hz": 499.99999999938893,
+  "candidate_bandwidths": [
+    {
+      "label": "measured median latency, 45deg phase lag hz",
+      "delay_s": 0.03196,
+      "bandwidth_hz": 3.9111389236545677,
+      "detrended_unwrapped_fraction_below": 0.9999855344135383,
+      "wrapped_fraction_below": 0.053769957401898556
+    },
+    {
+      "label": "measured median latency, 90deg phase lag hz",
+      "delay_s": 0.03196,
+      "bandwidth_hz": 7.8222778473091354,
+      "detrended_unwrapped_fraction_below": 0.9999921851301005,
+      "wrapped_fraction_below": 0.11403607303159831
+    },
+    {
+      "label": "measured median latency, 180deg phase lag hz",
+      "delay_s": 0.03196,
+      "bandwidth_hz": 15.644555694618271,
+      "detrended_unwrapped_fraction_below": 0.9999968532397762,
+      "wrapped_fraction_below": 0.23243879671877846
+    },
+    {
+      "label": "measured median latency, 360deg phase lag hz",
+      "delay_s": 0.03196,
+      "bandwidth_hz": 31.289111389236542,
+      "detrended_unwrapped_fraction_below": 0.9999988989284102,
+      "wrapped_fraction_below": 0.45499450420626725
+    },
+    {
+      "label": "measured slow latency, 45deg phase lag hz",
+      "delay_s": 0.07585,
+      "bandwidth_hz": 1.6479894528675016,
+      "detrended_unwrapped_fraction_below": 0.9999391861890105,
+      "wrapped_fraction_below": 0.02320816674110083
+    },
+    {
+      "label": "measured slow latency, 90deg phase lag hz",
+      "delay_s": 0.07585,
+      "bandwidth_hz": 3.2959789057350033,
+      "detrended_unwrapped_fraction_below": 0.9999816436350378,
+      "wrapped_fraction_below": 0.04692709028640431
+    },
+    {
+      "label": "measured slow latency, 180deg phase lag hz",
+      "delay_s": 0.07585,
+      "bandwidth_hz": 6.591957811470007,
+      "detrended_unwrapped_fraction_below": 0.9999913630428188,
+      "wrapped_fraction_below": 0.09545513056950305
+    },
+    {
+      "label": "measured slow latency, 360deg phase lag hz",
+      "delay_s": 0.07585,
+      "bandwidth_hz": 13.183915622940013,
+      "detrended_unwrapped_fraction_below": 0.9999962307723611,
+      "wrapped_fraction_below": 0.19457380127435023
+    },
+    {
+      "label": "assumed 150 ms effective latency, 45deg phase lag hz",
+      "delay_s": 0.15,
+      "bandwidth_hz": 0.8333333333333334,
+      "detrended_unwrapped_fraction_below": 0.9998923779726131,
+      "wrapped_fraction_below": 0.01137196051101476
+    },
+    {
+      "label": "assumed 150 ms effective latency, 90deg phase lag hz",
+      "delay_s": 0.15,
+      "bandwidth_hz": 1.6666666666666667,
+      "detrended_unwrapped_fraction_below": 0.9999395216185234,
+      "wrapped_fraction_below": 0.023401676225750092
+    },
+    {
+      "label": "assumed 150 ms effective latency, 180deg phase lag hz",
+      "delay_s": 0.15,
+      "bandwidth_hz": 3.3333333333333335,
+      "detrended_unwrapped_fraction_below": 0.9999823976914534,
+      "wrapped_fraction_below": 0.047340737692945195
+    },
+    {
+      "label": "assumed 150 ms effective latency, 360deg phase lag hz",
+      "delay_s": 0.15,
+      "bandwidth_hz": 6.666666666666667,
+      "detrended_unwrapped_fraction_below": 0.9999914524629072,
+      "wrapped_fraction_below": 0.09681859834171659
+    },
+    {
+      "label": "50 ms update Nyquist",
+      "delay_s": NaN,
+      "bandwidth_hz": 10.0,
+      "detrended_unwrapped_fraction_below": 0.9999939860308573,
+      "wrapped_fraction_below": 0.14790449671643618
+    },
+    {
+      "label": "2 ms software-NCO Nyquist",
+      "delay_s": NaN,
+      "bandwidth_hz": 250.0,
+      "detrended_unwrapped_fraction_below": 1.0,
+      "wrapped_fraction_below": 1.0
+    }
+  ],
+  "plots": [
+    "/home/rrrodriguez13/phaseControl/first_stage_demo/fll_pll_design_eval/spectrum_correctability/disturbance_psd_vs_actuator_limits.png",
+    "/home/rrrodriguez13/phaseControl/first_stage_demo/fll_pll_design_eval/spectrum_correctability/cumulative_phase_power_vs_bandwidth.png",
+    "/home/rrrodriguez13/phaseControl/first_stage_demo/fll_pll_design_eval/spectrum_correctability/delay_phase_lag_limits.png"
+  ]
+}

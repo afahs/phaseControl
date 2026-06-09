@@ -107,6 +107,15 @@ def circular_phase_lpf_update(phase_rad: float, alpha: float, state: CircularLpf
     return float(math.atan2(state.z_im, state.z_re))
 
 
+def scalar_lpf_update(value: float, alpha: float, prev: float | None) -> float:
+    if not np.isfinite(value):
+        return float(prev) if prev is not None and np.isfinite(prev) else float("nan")
+    if prev is None or (not np.isfinite(prev)):
+        return float(value)
+    a = clamp(alpha, 0.0, 0.999999)
+    return float((a * float(prev)) + ((1.0 - a) * float(value)))
+
+
 @dataclass
 class SlipAwareUnwrapper:
     prev_wrapped_phase_rad: float | None = None
@@ -191,6 +200,7 @@ class Measurement:
     wrapped_phase_rad: float
     unwrapped_phase_rad: float
     coherence: float
+    pullin_quality: float
     amp_rms: float
     freq_err_intrablock_hz: float
     freq_err_update_hz: float
@@ -207,6 +217,9 @@ class ControllerState:
     phase_int_rad_s: float = 0.0
     prev_phase_err_filt_rad: float | None = None
     phase_err_lpf: CircularLpfState = field(default_factory=CircularLpfState)
+    pullin_err_lpf_hz: float | None = None
+    pullin_lock_counter: int = 0
+    pullin_unlock_counter: int = 0
 
     dac_code_cmd: int = 0
     dac_code_rb: int | None = None
@@ -229,23 +242,35 @@ CSV_COLUMNS = [
     "tone_offset_hz",
     "tone_track_step_hz",
     "observer_tone_offset_hz",
+    "tracked_tone_offset_hz",
+    "pullin_reference_offset_hz",
     "phase_wrapped_rad",
     "phase_unwrapped_rad",
     "observer_phase_wrapped_rad",
     "observer_phase_unwrapped_rad",
+    "control_measurement_source",
+    "control_phase_wrapped_rad",
+    "control_phase_unwrapped_rad",
     "phase_setpoint_rad",
     "phase_err_raw_rad",
     "phase_err_filt_rad",
     "coherence",
+    "pullin_quality",
     "observer_coherence",
+    "observer_pullin_quality",
+    "control_coherence",
+    "control_pullin_quality",
     "amp_rms",
     "freq_err_intrablock_hz",
     "freq_err_update_hz",
     "observer_freq_err_intrablock_hz",
     "observer_freq_err_update_hz",
+    "control_freq_err_intrablock_hz",
+    "control_freq_err_update_hz",
     "observer_tau_err_ns",
     "pullin_target_hz",
     "pullin_error_hz",
+    "pullin_error_lpf_hz",
     "slip_cycles",
     "dphi_wrapped_rad",
     "dphi_used_rad",
@@ -411,14 +436,21 @@ def estimate_tone_offset_hz(
     return float(freqs[peak_idx])
 
 
-def phase_increment_freq_hz(z: np.ndarray, sample_rate_hz: float) -> float:
+def phase_increment_stats(z: np.ndarray, sample_rate_hz: float) -> tuple[float, float]:
     x = np.asarray(z, dtype=np.complex64).reshape(-1)
     if x.size < 2:
-        return float("nan")
-    s = np.sum(x[1:] * np.conjugate(x[:-1]), dtype=np.complex128)
+        return float("nan"), float("nan")
+    prod = x[1:] * np.conjugate(x[:-1])
+    s = np.sum(prod, dtype=np.complex128)
     if not (np.isfinite(s.real) and np.isfinite(s.imag)):
-        return float("nan")
-    return float((float(sample_rate_hz) / (2.0 * math.pi)) * np.angle(s))
+        return float("nan"), float("nan")
+    denom = float(np.sum(np.abs(prod), dtype=np.float64))
+    if denom <= 0.0 or (not np.isfinite(denom)):
+        quality = float("nan")
+    else:
+        quality = float(np.abs(s) / (denom + 1e-12))
+    freq_hz = float((float(sample_rate_hz) / (2.0 * math.pi)) * np.angle(s))
+    return float(freq_hz), float(quality)
 
 
 def measure_block(
@@ -441,7 +473,7 @@ def measure_block(
     wrapped_phase = float(np.angle(z))
     coherence = float(np.abs(z) / (np.sum(np.abs(iq)) + 1e-12))
     amp_rms = float(np.sqrt(np.mean(np.abs(demod) ** 2) + 1e-30))
-    freq_intrablock = phase_increment_freq_hz(demod, sample_rate_hz)
+    freq_intrablock, pullin_quality = phase_increment_stats(demod, sample_rate_hz)
 
     elapsed_s = float(
         (float(queued_block.sample_start) + (0.5 * float(iq.size))) / float(sample_rate_hz)
@@ -470,6 +502,7 @@ def measure_block(
         wrapped_phase_rad=float(wrapped_phase),
         unwrapped_phase_rad=float(unwrapped_phase),
         coherence=float(coherence),
+        pullin_quality=float(pullin_quality),
         amp_rms=float(amp_rms),
         freq_err_intrablock_hz=float(freq_intrablock),
         freq_err_update_hz=float(freq_update_hz),
@@ -533,7 +566,14 @@ def compute_summary(
             "observer_timing_drift_slope_ns_per_s_end": float("nan"),
             "observer_timing_drift_reduction_ns_per_s_abs": float("nan"),
             "observer_timing_drift_reduction_pct": float("nan"),
+            "observer_timing_drift_slope_ns_per_s_quality": float("nan"),
+            "observer_phase_drift_slope_quality_hz": float("nan"),
+            "observer_mean_abs_freq_err_hz_quality": float("nan"),
+            "quality_updates": 0,
+            "quality_fraction": float("nan"),
+            "quality_elapsed_s": float("nan"),
             "primary_timing_drift_ns_per_s": float("nan"),
+            "primary_timing_drift_samples_per_s": float("nan"),
         }
 
     def _fget(row: dict[str, Any], key: str) -> float:
@@ -548,6 +588,7 @@ def compute_summary(
     pe = np.asarray([float(r["phase_err_raw_rad"]) for r in rows], dtype=np.float64)
     ferr = np.asarray([float(r["freq_err_intrablock_hz"]) for r in rows], dtype=np.float64)
     stage_vals = [str(r["stage"]) for r in rows]
+    action_vals = [str(r.get("action", "")) for r in rows]
 
     obs_phu = np.asarray([_fget(r, "observer_phase_unwrapped_rad") for r in rows], dtype=np.float64)
     obs_coh = np.asarray([_fget(r, "observer_coherence") for r in rows], dtype=np.float64)
@@ -604,6 +645,21 @@ def compute_summary(
         if stage_vals
         else float("nan")
     )
+    quality_mask = np.asarray(
+        [
+            (not str(a).startswith("hold_low_")) and (str(a) != "hold_invalid_kv")
+            for a in action_vals
+        ],
+        dtype=bool,
+    )
+    quality_updates = int(np.count_nonzero(quality_mask))
+    quality_fraction = float(quality_updates / updates) if updates > 0 else float("nan")
+    if quality_updates >= 2:
+        quality_elapsed_s = float(t[quality_mask][-1] - t[quality_mask][0])
+    elif quality_updates == 1:
+        quality_elapsed_s = 0.0
+    else:
+        quality_elapsed_s = float("nan")
 
     obs_rf_hz = float(center_freq_hz) + obs_toff
     obs_tau_ns = np.full(obs_phu.shape, np.nan, dtype=np.float64)
@@ -642,6 +698,33 @@ def compute_summary(
         obs_tau_reduction_abs = float("nan")
         obs_tau_reduction_pct = float("nan")
 
+    valid_obs_quality = valid_obs & quality_mask
+    obs_slope_quality = (
+        linear_slope(t[valid_obs_quality], obs_phu[valid_obs_quality])
+        if np.count_nonzero(valid_obs_quality) >= 2
+        else float("nan")
+    )
+    obs_slope_quality_hz = (
+        float(obs_slope_quality / (2.0 * math.pi)) if np.isfinite(obs_slope_quality) else float("nan")
+    )
+    obs_tau_slope_quality = (
+        linear_slope(t[valid_obs_quality], obs_tau_ns[valid_obs_quality])
+        if np.count_nonzero(valid_obs_quality) >= 2
+        else float("nan")
+    )
+    obs_ferr_quality = obs_ferr[quality_mask & np.isfinite(obs_ferr)]
+    obs_mean_abs_freq_err_quality = (
+        float(np.nanmean(np.abs(obs_ferr_quality))) if obs_ferr_quality.size else float("nan")
+    )
+
+    primary_tau_ns_per_s = (
+        float(obs_tau_slope_quality) if np.isfinite(obs_tau_slope_quality) else float(obs_tau_slope_full)
+    )
+    if np.isfinite(primary_tau_ns_per_s):
+        primary_tau_samples_per_s = float(primary_tau_ns_per_s * float(sample_rate_hz) / 1e9)
+    else:
+        primary_tau_samples_per_s = float("nan")
+
     return {
         "mode": str(run_mode),
         "nsamp": int(nsamp),
@@ -668,7 +751,14 @@ def compute_summary(
         "observer_timing_drift_slope_ns_per_s_end": float(obs_tau_slope_end),
         "observer_timing_drift_reduction_ns_per_s_abs": float(obs_tau_reduction_abs),
         "observer_timing_drift_reduction_pct": float(obs_tau_reduction_pct),
-        "primary_timing_drift_ns_per_s": float(obs_tau_slope_full),
+        "observer_timing_drift_slope_ns_per_s_quality": float(obs_tau_slope_quality),
+        "observer_phase_drift_slope_quality_hz": float(obs_slope_quality_hz),
+        "observer_mean_abs_freq_err_hz_quality": float(obs_mean_abs_freq_err_quality),
+        "quality_updates": int(quality_updates),
+        "quality_fraction": float(quality_fraction),
+        "quality_elapsed_s": float(quality_elapsed_s),
+        "primary_timing_drift_ns_per_s": float(primary_tau_ns_per_s),
+        "primary_timing_drift_samples_per_s": float(primary_tau_samples_per_s),
     }
 
 
@@ -702,6 +792,7 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
         dac_start = clamp_int(int(args.dac_start), code_min, code_max)
 
     nominal_loop_period_s = float(nsamp) / float(args.sample_rate)
+    queue_get_timeout_s = max(float(args.queue_get_timeout_s), nominal_loop_period_s)
 
     logger = CsvLogger(csv_path)
     device = None
@@ -773,7 +864,15 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
             if args.max_updates is not None and update_idx >= int(args.max_updates):
                 break
 
-            item = await block_queue.get()
+            try:
+                item = await asyncio.wait_for(block_queue.get(), timeout=queue_get_timeout_s)
+            except asyncio.TimeoutError:
+                if producer_task is not None and producer_task.done():
+                    exc = producer_task.exception()
+                    if exc is not None:
+                        raise RuntimeError("Async SDR stream task failed.") from exc
+                    break
+                continue
             if isinstance(item, StreamSentinel):
                 if item.error is not None:
                     raise RuntimeError("Async SDR stream terminated unexpectedly.") from item.error
@@ -826,11 +925,28 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                     update_idx=int(update_idx),
                     unwrapper=observer_unwrapper,
                 )
+                if args.control_measurement_source == "observer":
+                    control_meas = observer_meas
+                else:
+                    control_meas = meas
 
-                if args.run_seconds is not None and meas.elapsed_s > float(args.run_seconds):
+                # Pull-in should prefer the update-to-update phase slope because it reflects
+                # the inter-block drift that the DAC can actually correct. The intrablock
+                # estimate is still useful as a fallback, but it is much noisier on live data.
+                tracked_freq_residual_hz = float(meas.freq_err_update_hz)
+                if not np.isfinite(tracked_freq_residual_hz):
+                    tracked_freq_residual_hz = float(meas.freq_err_intrablock_hz)
+                if not np.isfinite(tracked_freq_residual_hz):
+                    tracked_freq_residual_hz = 0.0
+                tracked_tone_offset_hz = float(meas.tone_offset_hz + tracked_freq_residual_hz)
+                pullin_reference_offset_hz = float(obs_ref_hz)
+
+                if args.run_seconds is not None and control_meas.elapsed_s > float(args.run_seconds):
                     break
 
-                phase_err_raw = wrap_to_pi(float(meas.wrapped_phase_rad) - float(args.phase_setpoint_rad))
+                phase_err_raw = wrap_to_pi(
+                    float(control_meas.wrapped_phase_rad) - float(args.phase_setpoint_rad)
+                )
                 phase_err_filt = circular_phase_lpf_update(
                     phase_err_raw,
                     float(args.phase_filter_alpha),
@@ -839,11 +955,14 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
 
                 tone_track_step_hz = 0.0
                 # Optional tone-reference tracking to keep demod near DC while clock changes.
-                # This mitigates coherence collapse when control motion shifts the observed tone.
+                # This uses pull-in quality rather than raw coherence because tone tracking
+                # should remain available while the residual tone is still outside the
+                # narrow raw-coherence region of the current block length.
                 if (
-                    float(args.tone_track_alpha) > 0.0
+                    (not state.in_phase_mode)
+                    and float(args.tone_track_alpha) > 0.0
                     and np.isfinite(meas.freq_err_intrablock_hz)
-                    and (meas.coherence >= float(args.tone_track_min_coh))
+                    and (meas.pullin_quality >= float(args.tone_track_min_coh))
                 ):
                     tone_track_step_hz = clamp(
                         float(args.tone_track_alpha) * float(meas.freq_err_intrablock_hz),
@@ -860,32 +979,76 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                 else:
                     observer_tau_err_ns = float("nan")
 
-                freq_pull_hz = float(meas.freq_err_intrablock_hz)
-                if not np.isfinite(freq_pull_hz):
-                    freq_pull_hz = float(meas.freq_err_update_hz)
-                if not np.isfinite(freq_pull_hz):
-                    freq_pull_hz = 0.0
+                phase_freq_err_hz = float(control_meas.freq_err_update_hz)
+                if not np.isfinite(phase_freq_err_hz):
+                    phase_freq_err_hz = float(control_meas.freq_err_intrablock_hz)
+                if not np.isfinite(phase_freq_err_hz):
+                    phase_freq_err_hz = 0.0
 
-                pullin_err_hz = float(freq_pull_hz - float(args.pullin_target_hz))
+                pullin_err_raw_hz = float(
+                    (tracked_tone_offset_hz - pullin_reference_offset_hz) - float(args.pullin_target_hz)
+                )
+                if np.isfinite(pullin_err_raw_hz):
+                    state.pullin_err_lpf_hz = scalar_lpf_update(
+                        float(pullin_err_raw_hz),
+                        float(args.pullin_filter_alpha),
+                        state.pullin_err_lpf_hz,
+                    )
+                pullin_err_hz = float(
+                    state.pullin_err_lpf_hz
+                    if state.pullin_err_lpf_hz is not None and np.isfinite(state.pullin_err_lpf_hz)
+                    else pullin_err_raw_hz
+                )
 
                 stage_switch_event = 0
+                phase_coh_for_control = float(control_meas.coherence)
+                pullin_quality_for_control = float(control_meas.pullin_quality)
+                phase_coh_ok = bool(
+                    np.isfinite(phase_coh_for_control)
+                    and (phase_coh_for_control >= float(args.coh_min))
+                )
+                pullin_quality_ok = bool(
+                    np.isfinite(pullin_quality_for_control)
+                    and (pullin_quality_for_control >= float(args.pullin_quality_min))
+                )
+                enter_ok = (
+                    pullin_quality_ok
+                    and phase_coh_ok
+                    and (abs(pullin_err_hz) <= float(args.pullin_switch_hz))
+                )
+                exit_ok = (
+                    (not phase_coh_ok)
+                    or (not pullin_quality_ok)
+                    or (abs(pullin_err_hz) >= float(args.pullin_exit_hz))
+                )
                 if not state.in_phase_mode:
-                    if abs(pullin_err_hz) <= float(args.pullin_switch_hz):
+                    if enter_ok:
+                        state.pullin_lock_counter += 1
+                    else:
+                        state.pullin_lock_counter = 0
+                    state.pullin_unlock_counter = 0
+                    if state.pullin_lock_counter >= int(args.pullin_enter_dwell_updates):
                         state.in_phase_mode = True
                         state.phase_int_rad_s = 0.0
                         state.prev_phase_err_filt_rad = None
+                        state.pullin_lock_counter = 0
                         stage_switch_event = 1
                         state.stage_switches += 1
                 else:
-                    if abs(pullin_err_hz) >= float(args.pullin_exit_hz):
+                    state.pullin_lock_counter = 0
+                    if exit_ok:
+                        state.pullin_unlock_counter += 1
+                    else:
+                        state.pullin_unlock_counter = 0
+                    if state.pullin_unlock_counter >= int(args.pullin_exit_dwell_updates):
                         state.in_phase_mode = False
                         state.phase_int_rad_s = 0.0
                         state.prev_phase_err_filt_rad = None
+                        state.pullin_unlock_counter = 0
                         stage_switch_event = 1
                         state.stage_switches += 1
 
                 stage = "phase_lock" if state.in_phase_mode else "pull_in"
-                coh_ok = bool(np.isfinite(meas.coherence) and (meas.coherence >= float(args.coh_min)))
 
                 action = "hold"
                 u_hz_raw = 0.0
@@ -894,14 +1057,15 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                 dac_step_applied = 0
                 dac_code_proposed = int(state.dac_code_cmd)
 
-                if not coh_ok:
-                    action = "hold_low_coherence"
+                control_quality_ok = pullin_quality_ok if not state.in_phase_mode else (phase_coh_ok and pullin_quality_ok)
+                if not control_quality_ok:
+                    action = "hold_low_pullin_quality" if not pullin_quality_ok else "hold_low_phase_coherence"
                 else:
                     if not state.in_phase_mode:
                         u_hz_raw = float(args.Kf_pullin_hz_per_hz) * pullin_err_hz
                         action = "pull_in"
                     else:
-                        dt = float(meas.dt_update_s)
+                        dt = float(control_meas.dt_update_s)
                         if dt <= 0.0 or (not np.isfinite(dt)):
                             dt = nominal_loop_period_s
 
@@ -957,7 +1121,7 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                         clipped_u = abs(float(u_hz_raw)) > (abs(float(args.max_u_hz)) + 1e-12)
 
                         if state.in_phase_mode and action == "phase_pid":
-                            dt = float(meas.dt_update_s)
+                            dt = float(control_meas.dt_update_s)
                             if dt <= 0.0 or (not np.isfinite(dt)):
                                 dt = nominal_loop_period_s
                             i_candidate2 = float(state.phase_int_rad_s)
@@ -1002,38 +1166,50 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                 state.prev_phase_err_filt_rad = float(phase_err_filt)
 
                 row: dict[str, Any] = {
-                    "unix_time_s": f"{meas.unix_time_s:.9f}",
-                    "elapsed_s": f"{meas.elapsed_s:.9f}",
+                    "unix_time_s": f"{control_meas.unix_time_s:.9f}",
+                    "elapsed_s": f"{control_meas.elapsed_s:.9f}",
                     "update_idx": int(update_idx),
                     "mode": str(args.mode),
                     "stage": stage,
                     "action": action,
                     "stage_switch_event": int(stage_switch_event),
-                    "sample_start": int(meas.sample_start),
+                    "sample_start": int(control_meas.sample_start),
                     "tone_offset_hz": f"{float(tone_offset_hz):.9f}",
                     "tone_track_step_hz": f"{float(tone_track_step_hz):.9f}",
                     "observer_tone_offset_hz": f"{float(obs_ref_hz):.9f}",
-                    "phase_wrapped_rad": f"{meas.wrapped_phase_rad:.9f}",
-                    "phase_unwrapped_rad": f"{meas.unwrapped_phase_rad:.9f}",
+                    "tracked_tone_offset_hz": f"{float(tracked_tone_offset_hz):.9f}",
+                    "pullin_reference_offset_hz": f"{float(pullin_reference_offset_hz):.9f}",
+                    "phase_wrapped_rad": f"{control_meas.wrapped_phase_rad:.9f}",
+                    "phase_unwrapped_rad": f"{control_meas.unwrapped_phase_rad:.9f}",
                     "observer_phase_wrapped_rad": f"{observer_meas.wrapped_phase_rad:.9f}",
                     "observer_phase_unwrapped_rad": f"{observer_meas.unwrapped_phase_rad:.9f}",
+                    "control_measurement_source": str(args.control_measurement_source),
+                    "control_phase_wrapped_rad": f"{control_meas.wrapped_phase_rad:.9f}",
+                    "control_phase_unwrapped_rad": f"{control_meas.unwrapped_phase_rad:.9f}",
                     "phase_setpoint_rad": f"{float(args.phase_setpoint_rad):.9f}",
                     "phase_err_raw_rad": f"{phase_err_raw:.9f}",
                     "phase_err_filt_rad": f"{phase_err_filt:.9f}",
-                    "coherence": f"{meas.coherence:.9f}",
+                    "coherence": f"{control_meas.coherence:.9f}",
+                    "pullin_quality": f"{control_meas.pullin_quality:.9f}",
                     "observer_coherence": f"{observer_meas.coherence:.9f}",
-                    "amp_rms": f"{meas.amp_rms:.9f}",
-                    "freq_err_intrablock_hz": f"{meas.freq_err_intrablock_hz:.9f}",
-                    "freq_err_update_hz": f"{meas.freq_err_update_hz:.9f}",
+                    "observer_pullin_quality": f"{observer_meas.pullin_quality:.9f}",
+                    "control_coherence": f"{control_meas.coherence:.9f}",
+                    "control_pullin_quality": f"{control_meas.pullin_quality:.9f}",
+                    "amp_rms": f"{control_meas.amp_rms:.9f}",
+                    "freq_err_intrablock_hz": f"{control_meas.freq_err_intrablock_hz:.9f}",
+                    "freq_err_update_hz": f"{control_meas.freq_err_update_hz:.9f}",
                     "observer_freq_err_intrablock_hz": f"{observer_meas.freq_err_intrablock_hz:.9f}",
                     "observer_freq_err_update_hz": f"{observer_meas.freq_err_update_hz:.9f}",
+                    "control_freq_err_intrablock_hz": f"{phase_freq_err_hz:.9f}",
+                    "control_freq_err_update_hz": f"{control_meas.freq_err_update_hz:.9f}",
                     "observer_tau_err_ns": f"{observer_tau_err_ns:.9f}",
                     "pullin_target_hz": f"{float(args.pullin_target_hz):.9f}",
-                    "pullin_error_hz": f"{pullin_err_hz:.9f}",
-                    "slip_cycles": int(meas.slip_cycles),
-                    "dphi_wrapped_rad": f"{meas.dphi_wrapped_rad:.9f}",
-                    "dphi_used_rad": f"{meas.dphi_used_rad:.9f}",
-                    "dphi_expected_rad": f"{meas.dphi_expected_rad:.9f}",
+                    "pullin_error_hz": f"{pullin_err_raw_hz:.9f}",
+                    "pullin_error_lpf_hz": f"{pullin_err_hz:.9f}",
+                    "slip_cycles": int(control_meas.slip_cycles),
+                    "dphi_wrapped_rad": f"{control_meas.dphi_wrapped_rad:.9f}",
+                    "dphi_used_rad": f"{control_meas.dphi_used_rad:.9f}",
+                    "dphi_expected_rad": f"{control_meas.dphi_expected_rad:.9f}",
                     "u_hz_raw": f"{float(u_hz_raw):.9f}",
                     "u_hz_limited": f"{float(u_hz_limited):.9f}",
                     "dac_code_cmd": int(state.dac_code_cmd),
@@ -1056,7 +1232,7 @@ async def run_one(args: argparse.Namespace, nsamp: int, csv_path: Path) -> dict[
                 update_idx += 1
                 if args.max_updates is not None and update_idx >= int(args.max_updates):
                     break
-                if args.run_seconds is not None and meas.elapsed_s > float(args.run_seconds):
+                if args.run_seconds is not None and control_meas.elapsed_s > float(args.run_seconds):
                     break
 
             if args.max_updates is not None and update_idx >= int(args.max_updates):
@@ -1154,6 +1330,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--blocks-per-update", type=int, default=1)
     p.add_argument("--async-queue-blocks", type=int, default=None)
+    p.add_argument(
+        "--queue-get-timeout-s",
+        type=float,
+        default=1.0,
+        help="Timeout while waiting for the next streamed block so wall-time exit still works.",
+    )
 
     p.add_argument("--run-seconds", type=float, default=120.0)
     p.add_argument("--max-updates", type=int, default=None)
@@ -1164,6 +1346,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="Fixed observer-reference tone offset (Hz). If omitted, uses initial tone offset.",
+    )
+    p.add_argument(
+        "--control-measurement-source",
+        choices=["adaptive", "observer"],
+        default="observer",
+        help="Which measurement stream drives pull-in and phase control.",
     )
     p.add_argument("--tone-estimate-blocks", type=int, default=8)
     p.add_argument("--dc-exclusion-hz", type=float, default=5e3)
@@ -1188,12 +1376,36 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
     p.add_argument("--phase-setpoint-rad", type=float, default=0.0)
     p.add_argument("--phase-filter-alpha", type=float, default=0.85)
-    p.add_argument("--coh-min", type=float, default=0.10)
+    p.add_argument("--coh-min", type=float, default=0.025)
+    p.add_argument(
+        "--pullin-quality-min",
+        type=float,
+        default=0.10,
+        help="Minimum pull-in quality required to trust intrablock frequency measurements.",
+    )
+    p.add_argument(
+        "--pullin-filter-alpha",
+        type=float,
+        default=0.80,
+        help="Low-pass filter alpha for the pull-in frequency error used by the staged controller.",
+    )
 
     p.add_argument("--pullin-target-hz", type=float, default=0.0)
-    p.add_argument("--pullin-switch-hz", type=float, default=50.0)
-    p.add_argument("--pullin-exit-hz", type=float, default=150.0)
-    p.add_argument("--Kf-pullin-hz-per-hz", type=float, default=0.30)
+    p.add_argument("--pullin-switch-hz", type=float, default=100.0)
+    p.add_argument("--pullin-exit-hz", type=float, default=300.0)
+    p.add_argument(
+        "--pullin-enter-dwell-updates",
+        type=int,
+        default=4,
+        help="Consecutive in-threshold updates required before entering phase_lock.",
+    )
+    p.add_argument(
+        "--pullin-exit-dwell-updates",
+        type=int,
+        default=2,
+        help="Consecutive out-of-threshold updates required before exiting phase_lock.",
+    )
+    p.add_argument("--Kf-pullin-hz-per-hz", type=float, default=0.07)
 
     p.add_argument("--Kp-hz-per-rad", type=float, default=40.0)
     p.add_argument("--Ki-hz-per-rad-s", type=float, default=4.0)
@@ -1282,12 +1494,14 @@ def print_run_summary(summary: dict[str, Any]) -> None:
     print(f"  phase_drift_reduction_hz_abs: {summary.get('phase_drift_reduction_hz_abs')}")
     print(f"  phase_drift_reduction_pct: {summary.get('phase_drift_reduction_pct')}")
     print(f"  observer_timing_drift_ns_per_s: {summary.get('primary_timing_drift_ns_per_s')}")
+    print(f"  observer_timing_drift_samples_per_s: {summary.get('primary_timing_drift_samples_per_s')}")
     print(
         "  observer_timing_drift_start/end_ns_per_s: "
         f"{summary.get('observer_timing_drift_slope_ns_per_s_start')} -> "
         f"{summary.get('observer_timing_drift_slope_ns_per_s_end')}"
     )
     print(f"  observer_timing_drift_reduction_pct: {summary.get('observer_timing_drift_reduction_pct')}")
+    print(f"  quality_fraction: {summary.get('quality_fraction')}")
     print(f"  csv_path: {summary.get('csv_path')}")
 
 

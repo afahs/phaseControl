@@ -1,0 +1,42 @@
+[
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_001_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_001"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_002_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_002"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_003_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_003"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_004_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_004"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_005_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_005"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_006_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_006"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_007_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_007"
+  },
+  {
+    "run_dir": "/home/rrrodriguez13/phaseControl/NotebookBased/runs/20260406_155721_phase_tuning_sweep/trials/trial_008_seed12345",
+    "seed": 12345,
+    "trial_id": "trial_008"
+  }
+]

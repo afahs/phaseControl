@@ -8,7 +8,8 @@ you previously validated (SMBus2).
 Implements:
 - init_clock_vcxo_28p8mhz(apr_ppm): configure Si5351 CLK0 ~28.800 MHz via VCXO/PLLB path.
 - set_clock0_freq_hz(f_hz): coarse I2C frequency change by updating MultiSynth0 (fractional capable).
-- set_dac_code(code): fine tuning via MCP4725 VC pin.
+- set_dac_code(code): fine tuning via MCP4725 VC pin. Returns the commanded code by
+  default; pass readback=True when an immediate I2C readback is required.
 - dac_code_to_volts(code): convenience conversion.
 
 Notes:
@@ -20,12 +21,12 @@ Notes:
 
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 from typing import Optional
 
 from smbus2 import SMBus, i2c_msg
-import numpy as np
 
 # ---------------------------
 # Default I2C addresses/bus
@@ -35,6 +36,12 @@ SI5351_ADDR_DEFAULT = 0x60
 MCP4725_ADDR_DEFAULT = 0x62
 
 VDD_DAC_DEFAULT = 3.3
+I2C_MARKER_GPIO_PIN_DEFAULT = 37
+I2C_MARKER_GPIO_MODE_DEFAULT = "BOARD"
+MCP4725_FAST_WRITE_DEFAULT = True
+MCP4725_VERIFY_WRITES_DEFAULT = False
+SI5351_FAST_CLOCK0_UPDATES_DEFAULT = True
+REQUIRE_CLOCK_CONFIG_FOR_DAC_DEFAULT = True
 
 
 # ---------------------------
@@ -67,6 +74,10 @@ def _wr(bus: SMBus, addr: int, reg: int, val: int) -> None:
     bus.write_byte_data(addr, reg, val & 0xFF)
 
 
+def _wr_block(bus: SMBus, addr: int, reg: int, vals) -> None:
+    bus.i2c_rdwr(i2c_msg.write(addr, [int(reg) & 0xFF] + [int(v) & 0xFF for v in vals]))
+
+
 def _wait_sys_init_clear(bus: SMBus, addr: int, timeout_s: float = 1.0) -> None:
     t0 = time.time()
     while _rd(bus, addr, REG0_STATUS) & 0x80:
@@ -75,19 +86,25 @@ def _wait_sys_init_clear(bus: SMBus, addr: int, timeout_s: float = 1.0) -> None:
         time.sleep(0.01)
 
 
+def _params_bytes(p1: int, p2: int, p3: int) -> list[int]:
+    return [
+        (p3 >> 8) & 0xFF,
+        (p3 >> 0) & 0xFF,
+        (p1 >> 16) & 0x03,
+        (p1 >> 8) & 0xFF,
+        (p1 >> 0) & 0xFF,
+        ((p3 >> 12) & 0xF0) | ((p2 >> 16) & 0x0F),
+        (p2 >> 8) & 0xFF,
+        (p2 >> 0) & 0xFF,
+    ]
+
+
 def _write_params(bus: SMBus, addr: int, base: int, p1: int, p2: int, p3: int) -> None:
     """
     Write 8-byte parameter block for PLL/MS registers.
     Matches your previous write_params().
     """
-    _wr(bus, addr, base + 0, (p3 >> 8) & 0xFF)
-    _wr(bus, addr, base + 1, (p3 >> 0) & 0xFF)
-    _wr(bus, addr, base + 2, (p1 >> 16) & 0x03)
-    _wr(bus, addr, base + 3, (p1 >> 8) & 0xFF)
-    _wr(bus, addr, base + 4, (p1 >> 0) & 0xFF)
-    _wr(bus, addr, base + 5, ((p3 >> 12) & 0xF0) | ((p2 >> 16) & 0x0F))
-    _wr(bus, addr, base + 6, (p2 >> 8) & 0xFF)
-    _wr(bus, addr, base + 7, (p2 >> 0) & 0xFF)
+    _wr_block(bus, addr, base, _params_bytes(p1, p2, p3))
 
 
 def _pll_params(a: int, b: int, c: int):
@@ -117,18 +134,81 @@ def _clamp_int(x: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, int(x)))
 
 
+class _GpioI2cMarker:
+    """
+    Scope marker for DAC I2C writes.
+
+    Pin numbers default to Raspberry Pi physical-header numbering so "pin 37"
+    means header pin 37, not BCM GPIO number 37.
+    """
+
+    def __init__(self, pin: int, mode: str = I2C_MARKER_GPIO_MODE_DEFAULT) -> None:
+        self.pin = int(pin)
+        self.mode = str(mode).upper()
+        self._gpio = None
+        self._ready = False
+        self._warned = False
+
+    def open(self) -> None:
+        if self._ready:
+            return
+        try:
+            import RPi.GPIO as GPIO
+
+            if self.mode == "BOARD":
+                GPIO.setmode(GPIO.BOARD)
+            elif self.mode == "BCM":
+                GPIO.setmode(GPIO.BCM)
+            else:
+                raise ValueError("GPIO marker mode must be BOARD or BCM.")
+            GPIO.setup(self.pin, GPIO.OUT, initial=GPIO.LOW)
+            self._gpio = GPIO
+            self._ready = True
+        except Exception as exc:
+            if not self._warned:
+                print(
+                    "WARNING: GPIO I2C marker disabled: {}".format(exc),
+                    flush=True,
+                )
+                self._warned = True
+            self._gpio = None
+            self._ready = False
+
+    def high(self) -> None:
+        if self._ready and self._gpio is not None:
+            self._gpio.output(self.pin, self._gpio.HIGH)
+
+    def low(self) -> None:
+        if self._ready and self._gpio is not None:
+            self._gpio.output(self.pin, self._gpio.LOW)
+
+    def close(self) -> None:
+        if self._gpio is None:
+            return
+        try:
+            self.low()
+            self._gpio.cleanup(self.pin)
+        finally:
+            self._gpio = None
+            self._ready = False
+
+
 # ---------------------------
 # MCP4725 helpers
 # ---------------------------
-def _mcp4725_write_dac(bus: SMBus, addr: int, code: int) -> None:
+def _mcp4725_write_dac(bus: SMBus, addr: int, code: int, fast_write: bool = True) -> None:
     """
-    MCP4725 "Write DAC input register" (no EEPROM) — same as your script.
+    MCP4725 DAC-register write, with no EEPROM update.
     """
     code = _clamp_int(code, 0, 4095)
-    b0 = 0x40
-    b1 = (code >> 4) & 0xFF
-    b2 = (code & 0x0F) << 4
-    bus.i2c_rdwr(i2c_msg.write(addr, [b0, b1, b2]))
+    if fast_write:
+        # MCP4725 fast-mode write: no EEPROM, two data bytes, immediate DAC update.
+        bus.i2c_rdwr(i2c_msg.write(addr, [(code >> 8) & 0x0F, code & 0xFF]))
+    else:
+        b0 = 0x40
+        b1 = (code >> 4) & 0xFF
+        b2 = (code & 0x0F) << 4
+        bus.i2c_rdwr(i2c_msg.write(addr, [b0, b1, b2]))
 
 
 def _mcp4725_readback(bus: SMBus, addr: int) -> int:
@@ -147,12 +227,20 @@ class ClockVCXO:
     si5351_addr: int = SI5351_ADDR_DEFAULT
     mcp4725_addr: int = MCP4725_ADDR_DEFAULT
     vdd_dac: float = VDD_DAC_DEFAULT
+    i2c_marker_gpio_pin: Optional[int] = I2C_MARKER_GPIO_PIN_DEFAULT
+    i2c_marker_gpio_mode: str = I2C_MARKER_GPIO_MODE_DEFAULT
+    mcp4725_fast_write: bool = MCP4725_FAST_WRITE_DEFAULT
+    verify_dac_writes: bool = MCP4725_VERIFY_WRITES_DEFAULT
+    fast_clock0_updates: bool = SI5351_FAST_CLOCK0_UPDATES_DEFAULT
+    require_clock_config_for_dac: bool = REQUIRE_CLOCK_CONFIG_FOR_DAC_DEFAULT
 
     # Internal state
     _bus: Optional[SMBus] = None
+    _i2c_marker: Optional[_GpioI2cMarker] = None
     _configured: bool = False
     _pll_b_hz: float = 864e6  # nominal after init (27 MHz * 32) via VCXO path
     _last_clock0_hz: Optional[float] = None
+    _last_dac_code: Optional[int] = None
 
     def __enter__(self) -> "ClockVCXO":
         self.open()
@@ -164,8 +252,19 @@ class ClockVCXO:
     def open(self) -> None:
         if self._bus is None:
             self._bus = SMBus(self.i2c_bus)
+        if self.i2c_marker_gpio_pin is not None and self._i2c_marker is None:
+            self._i2c_marker = _GpioI2cMarker(
+                int(self.i2c_marker_gpio_pin),
+                self.i2c_marker_gpio_mode,
+            )
+            self._i2c_marker.open()
 
     def close(self) -> None:
+        if self._i2c_marker is not None:
+            try:
+                self._i2c_marker.close()
+            finally:
+                self._i2c_marker = None
         if self._bus is not None:
             try:
                 self._bus.close()
@@ -242,7 +341,14 @@ class ClockVCXO:
     # -----------------------
     # Coarse frequency update via I2C (fractional MS0)
     # -----------------------
-    def set_clock0_freq_hz(self, f_hz: float, settle_s: float = 0.0) -> float:
+    def set_clock0_freq_hz(
+        self,
+        f_hz: float,
+        settle_s: float = 0.0,
+        *,
+        disable_output: Optional[bool] = None,
+        reset_pll: Optional[bool] = None,
+    ) -> float:
         """
         Coarse change of CLK0 frequency by updating MultiSynth0 divider ratio.
         Uses fractional mode so you can do kHz–10 kHz class steps without huge jumps.
@@ -270,7 +376,7 @@ class ClockVCXO:
 
         # Si5351 MS divider constraints: a in [4..900] typically (datasheet).
         # We'll clamp conservatively.
-        a = int(np.floor(ratio))
+        a = int(math.floor(ratio))
         if a < 4:
             a = 4
         if a > 900:
@@ -290,16 +396,20 @@ class ClockVCXO:
 
         p1, p2, p3 = _ms_frac_params(a, b, c)
 
-        # Update sequence:
-        # - (Optional) disable outputs
-        # - write MS0 params
-        # - reset PLLB (optional but robust)
-        # - re-enable CLK0 only
-        _wr(bus, self.si5351_addr, REG3_OE, 0xFF)
+        fast_update = bool(self.fast_clock0_updates)
+        if disable_output is None:
+            disable_output = not fast_update
+        if reset_pll is None:
+            reset_pll = not fast_update
+
+        if disable_output:
+            _wr(bus, self.si5351_addr, REG3_OE, 0xFF)
         _write_params(bus, self.si5351_addr, MS0_BASE, p1, p2, p3)
-        _wr(bus, self.si5351_addr, REG_PLLRST, 0x80)
-        time.sleep(0.01)
-        _wr(bus, self.si5351_addr, REG3_OE, 0xFE)
+        if reset_pll:
+            _wr(bus, self.si5351_addr, REG_PLLRST, 0x80)
+            time.sleep(0.01)
+        if disable_output:
+            _wr(bus, self.si5351_addr, REG3_OE, 0xFE)
 
         # Best-effort commanded frequency (actual will differ slightly due to quantization/VCXO pull)
         f_cmd = f_pll / (float(a) + (float(b) / float(c)))
@@ -313,12 +423,32 @@ class ClockVCXO:
     # -----------------------
     # Fine tuning via DAC (VC pin)
     # -----------------------
-    def set_dac_code(self, code: int, settle_s: float = 0.0) -> int:
+    def read_dac_code(self) -> int:
+        if self._bus is None:
+            self.open()
+        assert self._bus is not None
+        rb = _mcp4725_readback(self._bus, self.mcp4725_addr)
+        self._last_dac_code = int(rb)
+        return int(rb)
+
+    def set_dac_code(
+        self,
+        code: int,
+        settle_s: float = 0.0,
+        *,
+        readback: Optional[bool] = None,
+    ) -> int:
         """
-        Write MCP4725 code and return readback code.
-        Requires init_clock_vcxo_28p8mhz() called first (to ensure routing correct).
+        Write MCP4725 code and return the applied code.
+
+        By default this returns the clamped command after the write succeeds.
+        Set readback=True, or construct with verify_dac_writes=True, to force a
+        separate MCP4725 I2C readback for diagnostics.
+
+        Requires init_clock_vcxo_28p8mhz() called first unless constructed with
+        require_clock_config_for_dac=False for DAC-only tests.
         """
-        if not self._configured:
+        if self.require_clock_config_for_dac and not self._configured:
             raise RuntimeError("ClockVCXO not configured. Call init_clock_vcxo_28p8mhz() first.")
         if self._bus is None:
             self.open()
@@ -326,9 +456,24 @@ class ClockVCXO:
         bus = self._bus
 
         code_i = _clamp_int(int(code), 0, 4095)
-        _mcp4725_write_dac(bus, self.mcp4725_addr, code_i)
+        marker = self._i2c_marker
+        if marker is not None:
+            marker.high()
+        try:
+            _mcp4725_write_dac(
+                bus,
+                self.mcp4725_addr,
+                code_i,
+                fast_write=bool(self.mcp4725_fast_write),
+            )
+        finally:
+            if marker is not None:
+                marker.low()
         if settle_s and float(settle_s) > 0:
             time.sleep(float(settle_s))
-        rb = _mcp4725_readback(bus, self.mcp4725_addr)
-        return int(rb)
-
+        if readback is None:
+            readback = bool(self.verify_dac_writes)
+        if readback:
+            return self.read_dac_code()
+        self._last_dac_code = code_i
+        return int(code_i)

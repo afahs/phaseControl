@@ -1,0 +1,37 @@
+{
+  "rows": 30000,
+  "duration_s": 59.998000000000005,
+  "valid_fraction": 1.0,
+  "phase_slope_hz": 0.2551634139545179,
+  "timing_resid_rms_ns": 132.02474310102812,
+  "wrapped_phase_rms_rad": 1.805856219672344,
+  "wrapped_phase_p95_abs_rad": 2.9870002678797727,
+  "phase_band_rad": 1.0,
+  "phase_band_fraction": 0.32393333333333335,
+  "best_phase_band_dwell_s": 0.1039999999999992,
+  "mean_f_off_hz": -0.03996373208533478,
+  "median_f_off_hz": 0.25230950891611625,
+  "mean_abs_f_off_hz": 30.50880061530472,
+  "p95_abs_f_off_hz": 80.17659195604146,
+  "p99_abs_f_off_hz": 134.47961011845513,
+  "mean_coherence": 0.9713145353136529,
+  "p05_coherence": 0.9132300006145657,
+  "mean_amp": 0.42835773005694144,
+  "control_cmd_min": 2033.0,
+  "control_cmd_max": 2053.0,
+  "control_cmd_final": 2041.0,
+  "control_stage_counts": {
+    "fine_lock": 29801,
+    "pull_in": 199
+  },
+  "status_counts": {
+    "fine_lock_hold_between_updates": 28475,
+    "fine_lock_update": 1186,
+    "pull_in_hold_between_updates": 191,
+    "fine_lock_hold_f_off_near_ambiguity": 84,
+    "fine_lock_hold_cycle_slip": 55,
+    "pull_in_update": 7,
+    "pull_in_hold_no_prev_phasor": 1,
+    "enter_fine_lock": 1
+  }
+}

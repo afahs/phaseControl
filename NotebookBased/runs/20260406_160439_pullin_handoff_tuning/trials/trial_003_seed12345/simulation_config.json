@@ -1,0 +1,20 @@
+{
+  "amplitude": 0.85,
+  "dac_center_code": 2029,
+  "drift_rate_hz_per_s": 0.0,
+  "initial_tone_offset_hz": -300.0,
+  "iq_scale": 90.0,
+  "noise_std": 0.04,
+  "path_phase_offset_rad": 0.0,
+  "phase_noise_std_rad": 0.0,
+  "plant_hz_per_code": 4.243,
+  "plant_tau_s": 0.05,
+  "random_walk_hz_per_sqrt_s": 0.0,
+  "realtime": false,
+  "receiver_drift_rate_hz_per_s": 0.0,
+  "receiver_random_walk_hz_per_sqrt_s": 0.0,
+  "sample_rate_hz": 2400000.0,
+  "seed": 12345,
+  "step_at_s": 0.5,
+  "step_hz": 0.0
+}
