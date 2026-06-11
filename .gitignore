@@ -23,3 +23,14 @@ v5TestComparisons/*.csv
 # OS/editor noise
 .DS_Store
 *.csv
+phaseControlBackup-2026-06-09.tar.gz
+first_stage_demo/logs/
+*.npz
+*.bin
+*.log
+*.stdout.log
+*.stderr.log
+tmp.npz
+gitkey
+gitkey.pub
+.codex
