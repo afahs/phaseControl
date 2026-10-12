@@ -4,6 +4,9 @@ Target: `rrrodriguez13@192.168.0.145`, SSH alias `project-pi`.
 Host: `pi3`, Debian 12 (Bookworm), Git 2.39.2.
 The application and runtime will be chosen later.
 
+Future conversations should read [PI_HANDOFF.md](PI_HANDOFF.md) for connection details,
+setup history, owner preferences, and remaining work. `AGENTS.md` directs agents to it.
+
 ## SSH
 
 The dedicated private key stays on this Windows computer at
