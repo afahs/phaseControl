@@ -1,6 +1,7 @@
 # Raspberry Pi project foundation
 
 Target: `rrrodriguez13@192.168.0.145`, SSH alias `project-pi`.
+Host: `pi3`, Debian 12 (Bookworm), Git 2.39.2.
 The application and runtime will be chosen later.
 
 ## SSH
@@ -9,7 +10,7 @@ The dedicated private key stays on this Windows computer at
 `C:/Users/Adam/.ssh/id_ed25519_project_pi`; never commit or copy it to the Pi.
 It has no passphrase for unattended updates and is protected by Windows file permissions.
 The SSH alias uses public-key authentication only and the existing known host record.
-After installing its public key on the Pi, test with `ssh project-pi`.
+The public key is installed and key-only login has been verified. Connect with `ssh project-pi`.
 Server password authentication remains enabled at the owner's request, for fallback access.
 This computer's SSH alias uses keys only. To explicitly use a password from this computer:
 
@@ -30,6 +31,10 @@ git remote add pi project-pi:/home/rrrodriguez13/projects/new-project
 ```
 
 This repository records commits as `Adam <adam.fahs@berkeley.edu>`.
+Its `main` branch tracks `pi/main`, so `git push` also deploys updates.
+Git is configured locally to use its bundled OpenSSH client with the Windows SSH config;
+Windows system OpenSSH transferred files but failed to finish the Git transport cleanly.
+If the bundled Git installation moves, update the repository's `core.sshCommand` path.
 
 Then edit and commit locally, and deploy:
 
