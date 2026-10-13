@@ -263,6 +263,43 @@ class TelemetryTests(unittest.TestCase):
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_rejected_stale_command_reacquires_from_actual_dac(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        class Clock:
+            base = offset = 0.
+            calls = 0
+            injected = False
+            def read(self):
+                self.calls += 1
+                if self.calls == 2 and not self.injected:
+                    self.offset += .2  # latency between estimate and first write
+                    self.injected = True
+                return self.base+self.offset+.001
+        clock = Clock()
+        class Rig(SimulatedRig):
+            def get(self, timeout=1.):
+                clock.base = self.index/self.c.sample_rate
+                clock.calls = 0
+                block = super().get(timeout)
+                block.arrival = clock.base+clock.offset
+                return block
+            def write(self, code):
+                if abs(code-self.code) > self.c.max_step_codes:
+                    raise OSError("proposal diverged from actual DAC")
+                super().write(code)
+        fake_time = SimpleNamespace(monotonic=clock.read, perf_counter=time.perf_counter,
+                                    process_time=time.process_time)
+        c = Config()
+        rig = Rig(c, offset=80)
+        with tempfile.TemporaryDirectory() as root:
+            with patch("beacon_clock.runtime.time", fake_time):
+                summary = run(c, rig, Path(root)/"run", 1., rig, calibration(c), "discipline")
+        self.assertTrue(clock.injected)
+        self.assertEqual(summary["stale_blocks"], 1)
+        self.assertIsNone(summary["failure"])
+        self.assertGreater(summary["dac_writes"], 0)
+
     def test_cli_simulation_uses_supplied_measured_plant(self):
         from contextlib import redirect_stdout
         from dataclasses import asdict
