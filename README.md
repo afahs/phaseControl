@@ -1,62 +1,148 @@
-# Raspberry Pi project foundation
+# Beacon clock discipline
 
-Target: `rrrodriguez13@192.168.0.145`, SSH alias `project-pi`.
-Host: `pi3`, Debian 12 (Bookworm), Git 2.39.2.
-The application and runtime will be chosen later.
+Experimental frequency and relative-phase discipline for a modified RTL2832U SDR,
+using a 50 MHz pilot, Pi, MCP4725 DAC, and Si5351B 28.8 MHz external clock.
+This does **not** establish absolute time or sample alignment between stations.
 
-Future conversations should read [PI_HANDOFF.md](PI_HANDOFF.md) for connection details,
-setup history, owner preferences, and remaining work. `AGENTS.md` directs agents to it.
+## Architecture
 
-## SSH
+One persistent SDR acquisition thread copies USB buffers into an owned pool. The
+DSP/control worker uses a fixed coarse mixer, stateful FIR, and phase/frequency
+estimation. A separate writer saves compact binary telemetry in batches. There is
+no CSV output, per-sample Python processing, or file I/O in the control path.
 
-The dedicated private key stays on this Windows computer at
-`C:/Users/Adam/.ssh/id_ed25519_project_pi`; never commit or copy it to the Pi.
-It has no passphrase for unattended updates and is protected by Windows file permissions.
-The SSH alias uses public-key authentication only and the existing known host record.
-The public key is installed and key-only login has been verified. Connect with `ssh project-pi`.
-Server password authentication remains enabled at the owner's request, for fallback access.
-This computer's SSH alias uses keys only. To explicitly use a password from this computer:
+The acquisition queue holds eight 8192-sample blocks at 1.024 MS/s. Overflow drains
+stale queued work and marks a new continuity segment. USB timestamps indicate
+callback arrival, not sample time; unknown device-side loss remains possible.
+The direct `read_bytes_async` API avoids pyrtlsdr's extra asynchronous queue.
 
-```powershell
-ssh -o PreferredAuthentications=password -o PasswordAuthentication=yes -o PubkeyAuthentication=no project-pi
+Control acquires frequency, then uses a PI phase servo. The setpoint is captured
+for each continuous run. Invalid/stale data enters holdover; stream or DAC errors
+end the run with a fault summary. Normal actuation writes only the MCP4725 volatile
+register. Clock initialization is explicit and happens before streaming.
+
+## Installation and tests
+
+Python 3.10+ and NumPy are required. Hardware additionally needs librtlsdr,
+pyrtlsdr, smbus2, USB permissions, and I2C permissions. Matplotlib is optional for
+plots. Install locally with `python -m pip install -e '.[hardware,plots]'`.
+The Pi already has the dependencies in `/home/rrrodriguez13/sdr/.env/bin/python`.
+Use `python -m beacon_clock` directly from this checkout; installation is optional.
+
+```bash
+python -m unittest discover -s tests -v
+python -m unittest test_setClockFreq -v
+python -m beacon_clock defaults --output bench.json
+python -m beacon_clock discipline --simulate --duration 120 --output /tmp/beacon-sim
+python -m beacon_clock analyze /tmp/beacon-sim --plots
 ```
 
-## Deployment
+On Windows sandboxes, set Python's `tempfile.tempdir` to a writable test directory
+if the OS-provided temporary directory is inaccessible. Tests never open hardware.
 
-The Pi checkout is `/home/rrrodriguez13/projects/new-project`, on branch `main`.
-This local repository already has a `pi` remote pointing to it. `setup-pi.sh`
-records the repeatable provisioning steps and installs Git if needed.
-For a different local repository, configure it once:
+## Hardware workflow
 
-```powershell
-git branch -M main
-git remote add pi project-pi:/home/rrrodriguez13/projects/new-project
+Read [PI_HANDOFF.md](PI_HANDOFF.md) before deployment. Review the wiring, clock
+injection/coupling, generator reference, and scope measurement floor before
+interpreting results. The owner reports that the injected reference drives both
+the tuner and ADC. DAC supply is 3.3 V; default code limits 410–3685 stay within
+10–90% of that supply. The legacy code identifies DAC address 0x62 and clock 0x60;
+the inspect command verifies responses rather than scanning the bus.
+
+From the Pi checkout, using its existing Python environment:
+
+```bash
+PY=/home/rrrodriguez13/sdr/.env/bin/python
+$PY -m beacon_clock inspect
+$PY -m beacon_clock monitor --duration 60 --output ~/clock-runs/smoke
+$PY -m beacon_clock analyze ~/clock-runs/smoke --plots
+$PY -m beacon_clock monitor --duration 3600 --output ~/clock-runs/baseline
+$PY -m beacon_clock characterize --output ~/clock-runs/characterization
+$PY -m beacon_clock discipline --duration 60 \
+    --calibration ~/clock-runs/characterization/calibration.json \
+    --output ~/clock-runs/closed-smoke
 ```
 
-This repository records commits as `Adam <adam.fahs@berkeley.edu>`.
-Its `main` branch tracks `pi/main`, so `git push` also deploys updates.
-Git is configured locally to use its bundled OpenSSH client with the Windows SSH config;
-Windows system OpenSSH transferred files but failed to finish the Git transport cleanly.
-If the bundled Git installation moves, update the repository's `core.sshCommand` path.
+Every output directory must be new. Monitor never writes the DAC or clock.
+Characterization performs a bounded ABBA DAC sweep (default ±8 codes, six cycles,
+3-second dwells), excludes the first second of each dwell, fits frequency against
+code and linear drift, and restores the starting code. It refuses to produce a
+valid calibration when slope is unresolved. Calibration is bound to center/pilot
+frequency, expected baseband offset, sample rate, and APR.
 
-Then edit and commit locally, and deploy:
+Control verifies the existing 28.8 MHz/PLLB/VCXO configuration. If it does not
+match, investigate first. `--initialize-clock` explicitly programs the repository's
+27 MHz crystal / 864 MHz PLL / divide-by-30 plan before acquisition. It disables
+other clock outputs, just like the existing configuration utility. Changing APR
+requires a new characterization. Evaluate 120, 60, then 30 ppm between runs and
+retain at least 25% headroom for observed warm-up and drift.
 
-```powershell
-git add .
-git commit -m "Describe the change"
-git push pi main
+The default expected pilot offset is 250 kHz at a 49.75 MHz center. Actual tuner
+and digital tuning quantization can cause a constant bias. Independently calibrate
+`expected_offset_hz` before treating a zero pilot residual as exact 28.8 MHz.
+The Si5351 crystal reference frequency is an assumption until measured.
+
+Controller `bandwidth_hz` means second-order natural frequency, not equivalent
+noise bandwidth. Gains include measured Hz/code, and the PI/integrator model
+checks at least 45 degrees phase margin including measurement age and ZOH delay.
+The automatically generated calibration uses a **conservative buffering delay
+budget**, not a scope-measured transfer function. Scope validation and a complete
+actuator sweep remain necessary before claiming a characterized stability margin.
+No dithering is enabled; quantized limit cycles must be measured, not hidden.
+
+```bash
+$PY -m beacon_clock replay ~/clock-runs/closed-smoke \
+    --calibration ~/clock-runs/characterization/calibration.json \
+    --output ~/clock-runs/replay.json
 ```
 
-Git updates the Pi checkout automatically using `receive.denyCurrentBranch=updateInstead`.
-It rejects updates if tracked files on the Pi have been edited, and rejects rewritten history
-and branch deletions. Develop locally; keep runtime data and secrets outside tracked files.
-To roll back, use `git revert <commit>` locally, then push the new commit.
+Replay produces deterministic command digests for 0.03, 0.1, and 0.3 Hz candidates.
+It does not simulate the effect of those commands on recorded measurements. Use
+the delayed, quantized simulated plant and hardware tests for that comparison.
 
-This deploys source files. Service startup, dependency installation, health checks, and
-automatic restarts will be added when the application is defined. It does not install OS
-updates. The Pi remote provides a second copy of Git history; an off-device hosted origin
-can be added later for independent backup and collaboration.
+## Storage and analysis
 
-Reserve `192.168.0.145` for the Pi in the router's DHCP settings so its address remains stable.
+Each run contains `telemetry.bin` and a small `run.json`. Binary schema version 1
+uses fixed little-endian records and integer state/flag codes, defined in
+`beacon_clock/telemetry.py`. At 10 records/s, detailed telemetry uses about 2.6 MB/hour.
+No raw IQ is saved. Raw-IQ capture is deliberately deferred; recorded-measurement
+replay is supported, while deterministic IQ fixtures are generated by simulation.
 
-Reference: https://git-scm.com/docs/git-config#Documentation/git-config.txt-receivedenyCurrentBranch
+The writer publishes approximately one-second batches through a bounded queue.
+Storage stalls drop telemetry, with sequence numbers and summary counters showing
+the loss, rather than blocking control. The default acquisition-output cap is
+256 MiB including reserved metadata; reaching it stops detailed recording but
+leaves control running. Existing runs are never automatically deleted. Analysis
+outputs are separate from this acquisition cap. Abrupt power loss can lose buffered
+records; initial metadata remains `final: false` until an orderly close.
+
+Analysis reads binary directly, splits on gaps/invalid data/resets, and computes
+overlapping Allan deviation from uniform strided subseries without interpolation
+or drift subtraction. At 10 Hz scheduling on 8 ms blocks, every other measurement
+normally gives a uniform 200 ms cadence. Reports include the cadence method and
+number of terms. Coherence is measured at the pilot frequency and retains drift.
+Equivalent timing is phase divided by `2*pi*pilot_hz`; it includes reference,
+propagation, receiver, and clock contributions. In-loop error is not an independent
+measurement of clock accuracy.
+
+## Validation and limits
+
+Automated tests cover both control polarities, delayed quantized actuation, DSP
+frequency/phase recovery, clipping/dropout, buffer ownership/overflow, writer
+stalls/caps, deterministic replay, and calibration restoration. Run them before
+deployment. Hardware acceptance additionally requires:
+
+- One-hour matched open/closed runs and eight-hour endurance, without growing
+  queues or normal-load software overflow.
+- p99 DSP below 4 ms per 8 ms block, separately reported I2C and command age.
+- Pilot interruption/attenuation, restart, DAC failure, and three cold starts.
+- Scope comparison of generator and clock, including the 50/28.8 frequency ratio.
+- Repeatable actuator gain, voltage limits, latency, warm-up drift, and noise floor.
+
+Service installation is deferred until these interactive gates pass. The unmodified
+second SDR is excluded. A future second controllable station requires additional
+broadband/coded calibration for sample alignment. Wireless testing must characterize
+path delays, multipath, pilot leakage, and dynamic range; one tone has a 20 ns
+ambiguity and cannot distinguish clock drift from changing propagation.
+
+See [docs/design.md](docs/design.md) for the research basis and legacy-code review.
