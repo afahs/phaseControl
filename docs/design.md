@@ -49,9 +49,9 @@ half for the actuator zero-order hold, in addition to age and transport budgets.
 ## Present reference source
 
 The owner identifies an HP8656A, expected to be unmodulated and using an external
-reference, and a Tektronix TDS2012 scope. The front-panel AM/FM settings,
-external-reference source/frequency, and calibration state have not been
-independently established.
+rubidium reference that feeds no other part of the setup, and a Tektronix TDS2012
+scope. The rubidium model/frequency are unspecified. The front-panel AM/FM
+settings and calibration state have not been independently established.
 HP's [8656A manual, Table 1-1 and Table 4-2](https://manuals.chudov.com/HP/HP-8656A-Signal-Generator-1981-WW.pdf)
 specifies residual FM even in CW mode: below 15 Hz RMS in a 0.3-3 kHz
 post-detection bandwidth, and below 30 Hz RMS in 0.05-15 kHz, for the band
