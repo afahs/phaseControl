@@ -109,7 +109,8 @@ The hashes should match and the remote status should be empty.
   IQ recordings are produced. Do not delete existing experiments automatically.
 - Read [docs/validation.md](docs/validation.md) for measured results, calibration
   caveats, and remaining hardware gates. The source is HP8656A, expected CW;
-  its reference selection and modulation settings need bench verification.
+  the owner reports an external reference and a Tektronix TDS2012 scope. The
+  reference source/frequency and modulation settings need bench verification.
 - Latest observed DAC code is 2404; Si5351B APR is 120 ppm. Normal corrections
   use volatile DAC writes. Do not reset/reinitialize the clock during acquisition.
 - No startup service is installed/enabled. Add startup, automatic restarts, and

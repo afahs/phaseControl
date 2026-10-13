@@ -7,9 +7,10 @@ performance criteria have **not** been established. No startup service is enable
 ## Bench and evidence locations
 
 - Pi 4 Model B Rev 1.5, Debian 12; modified RTL2832U/R820T-family SDR.
-- HP8656A set to nominal 50 MHz; owner expects unmodulated operation. Reference
-  selection, timebase option, front-panel modulation settings, and scope model
-  remain unverified. See the specification discussion in [design.md](design.md).
+- HP8656A set to nominal 50 MHz; owner expects unmodulated operation and reports
+  an external reference. Its source/model/frequency and front-panel modulation
+  settings remain to be established. Scope: Tektronix TDS2012 (owner report).
+  See the specification discussion in [design.md](design.md).
 - Owner confirms the injected 28.8 MHz drives both tuner and ADC clocks.
 - MCP4725 at 0x62 and Si5351B at 0x60. Readback matches the repository's nominal
   27 MHz crystal / 864 MHz PLLB / divide-by-30 configuration and APR 120 ppm.
@@ -152,3 +153,56 @@ tests passed on the Pi. Automated tests never open the SDR or I2C devices.
 Service operation follows these interactive gates. Two-station sample alignment
 and wireless operation remain later milestones; one receiver and one tone cannot
 validate either.
+
+## Next bench investigations
+
+The primary plot now shows unwrapped relative phase in radians. Each continuous
+segment has its own origin; it is not the captured controller setpoint, which
+was not retained in these historical records. Existing gaps remain visible.
+
+Investigate two separate questions: phase variation with fixed DAC, and coarse
+actuation during feedback. Do not assume either explains the other.
+
+1. **HP8656A and its external reference.** Identify the reference source/frequency,
+   confirm reference lock and AM/FM off, and check level/termination. External
+   reference operation does not by itself establish low RF phase noise. If a
+   second suitable source is available, substitute it at the same received power
+   while keeping the DAC fixed. A change in phase statistics implicates the source
+   chain; no change shifts attention toward the clock/receiver path.
+2. **MCP4725, VC wiring, and power.** Scope VC at a fixed code for ripple, then
+   observe small bounded code steps for size, settling, and glitches. Compare
+   with clock behavior; a flat-looking scope trace only bounds noise above the
+   instrument's floor. Check local decoupling and ground connections. Do not add
+   an arbitrary RC filter before measuring its effect on loop delay.
+3. **Si5351B and injected clock.** Check the 28.8 MHz signal at the SDR input for
+   amplitude, offset, ringing, and coupling using a suitably low-loading probe.
+   Recalibrate near code 2404, measure response delay, and compare 120/60/30 ppm
+   APR between stopped runs after establishing warm-up drift/headroom. Reduced
+   range should reduce Hz/code; measure rather than assume exact scaling. The
+   configurable VCXO gain/range is documented in the
+   [Si5351B datasheet](https://www.skyworksinc.com/-/media/Skyworks/SL/documents/public/data-sheets/Si5351-B.pdf).
+4. **SDR analog path and estimation.** With source and DAC held fixed, compare
+   input attenuation at fixed tuner gain and compare center-frequency offsets.
+   Continue both phase estimators. This tests compression, baseband artifacts,
+   and model/quality-gate failures; it does not require the unmodified second SDR.
+5. **Then retune and validate.** Use measured response/quantization in simulation,
+   log the actual phase setpoint/error in a versioned telemetry update, establish
+   short repeatable lock, and proceed to matched one-hour open/closed runs and
+   endurance. Consider finer actuation only if reduced APR with adequate headroom
+   still leaves excessive measured phase limit cycles.
+
+The [TDS2012 specification](https://www.tek.com/de/datasheet/tds1000-and-tds2000-series-oscilloscopes)
+lists two channels, 100 MHz bandwidth, up to 1 GS/s, 2,500-point records, and
+50 ppm timebase accuracy. Use it first for signal integrity, VC ripple/steps,
+and coarse relative behavior. Disable its 20 MHz bandwidth limit when inspecting
+the RF/clock signals. Its absolute frequency readout is insufficient evidence
+for a few-hertz correction at 50 MHz. Same-source two-channel measurements can
+establish a relative measurement floor; sample spacing alone is not phase
+precision. External trigger is not an external frequency-reference input.
+
+Because 50 MHz and 28.8 MHz differ, a simple edge-phase readout between them is
+not the desired clock error. A quantitative comparison needs a verified frequency
+ratio method, such as suitable coherent division/downconversion, or a reference-
+locked counter/phase instrument. Establish the available equipment and its floor
+before proposing purchases. No hardware replacement is yet justified by the
+current measurements alone.
