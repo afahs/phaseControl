@@ -122,10 +122,11 @@ overflow, signed gain, delayed quantized control, output/slew limits, saturation
 holdover/fault, bandwidth rejection, phase/frequency recovery, fast FM, dropout,
 clipping, deterministic replay, calibration/restoration, storage stalls and caps,
 stdout disconnection, and analytical Allan deviation for a frequency ramp.
-Twenty tests passed on the Pi in 31.65 s before the final simulation-calibration
-CLI regression was added. The three existing clock-configuration tests also passed.
-Automated tests
-never open the SDR or I2C devices.
+The final 23-test suite passed locally in 8.45 s and on the Pi in 33.10 s at
+commit `e605746`. It also covers measured calibration in the simulated plant,
+distinct Allan averaging times, and rejection of stale DAC proposals without
+diverging from the actual applied output. The three existing clock-configuration
+tests passed on the Pi. Automated tests never open the SDR or I2C devices.
 
 ## Remaining acceptance gates
 
