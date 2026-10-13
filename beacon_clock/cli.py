@@ -112,7 +112,14 @@ def main(argv=None):
             else:
                 if not 0 < args.duration <= 86400:
                     raise ValueError("duration must be in (0, 86400] seconds")
-                source = SimulatedRig(c) if args.simulate else RtlSource(c)
+                cal = Calibration.load(args.calibration) if args.calibration else None
+                if cal:
+                    cal.validate(c)
+                if args.simulate:
+                    source = (SimulatedRig(c, gain=cal.hz_per_code, delay_s=cal.delay_s)
+                              if cal else SimulatedRig(c))
+                else:
+                    source = RtlSource(c)
                 actuator = None
                 extra = json.loads(Path(args.instruments).read_text()) if args.instruments else {}
                 if not isinstance(extra, dict):
@@ -136,7 +143,6 @@ def main(argv=None):
                         result = characterize(c, source, actuator, args.output, args.cycles,
                                               args.step, args.dwell, args.status, extra)
                     else:
-                        cal = Calibration.load(args.calibration) if args.calibration else None
                         if args.command == "discipline" and cal is None:
                             if not args.simulate:
                                 raise ValueError("--calibration is required for hardware feedback")

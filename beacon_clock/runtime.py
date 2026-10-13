@@ -146,6 +146,9 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                         # Last freshness check immediately before the I2C transaction.
                         if time.monotonic() - block.arrival > config.max_age_s:
                             if controller:
+                                # update() proposed a new code, but it was never
+                                # applied. Reacquire from the actual actuator.
+                                controller.code = code
                                 controller.hold()
                             stale_count += 1
                             valid = False

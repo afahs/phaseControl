@@ -176,6 +176,25 @@ def values(i):
 
 
 class TelemetryTests(unittest.TestCase):
+    def test_allan_keeps_distinct_averaging_times_separate(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/"run"
+            c = Config()
+            writer = Writer(path, c, {})
+            drift = 1e-10
+            for i in range(80):
+                row = list(values(i))
+                row[1] = i*.1 if i < 40 else 10+(i-40)*.2
+                row[2] = 2*np.pi*c.pilot_hz*.5*drift*row[1]**2
+                row[4] = 1 if i < 40 else 2
+                writer.append(tuple(row))
+                if i % 10 == 9:
+                    time.sleep(.01)
+            writer.close({})
+            result = analyze(path)
+            for p in result["allan"]:
+                self.assertAlmostEqual(p["deviation"]/(drift*p["tau_s"]/np.sqrt(2)), 1., places=6)
+
     def test_closed_stdout_does_not_stop_binary_writer(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as root:
@@ -244,6 +263,25 @@ class TelemetryTests(unittest.TestCase):
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_cli_simulation_uses_supplied_measured_plant(self):
+        from contextlib import redirect_stdout
+        from dataclasses import asdict
+        from io import StringIO
+        from beacon_clock.cli import main
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/"run"
+            cp = Path(root)/"calibration.json"
+            cal = replace(calibration(Config(), gain=-3.17), delay_s=.104)
+            cp.write_text(json.dumps(asdict(cal)))
+            with redirect_stdout(StringIO()):
+                result = main(["discipline", "--simulate", "--duration", "1",
+                               "--calibration", str(cp), "--output", str(path)])
+            self.assertEqual(result, 0)
+            meta, rows = read_run(path)
+            self.assertEqual(meta["summary"]["source_settings"]["actual_hz_per_code"], cal.hz_per_code)
+            self.assertEqual(meta["summary"]["source_settings"]["delay_s"], cal.delay_s)
+            del rows
+
     def test_i2c_failure_faults_and_stops_updates(self):
         class BrokenDac:
             def read(self):

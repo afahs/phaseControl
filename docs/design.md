@@ -33,6 +33,32 @@ negative feedback. Saturation and slew limits use conditional integration.
 Residual pilot phase is local to a continuous segment; it is not an absolute
 timestamp. Restart/invalid measurements break that segment and require reacquisition.
 
+The coarse mixer is fixed within a segment. Contiguous filtered phases are
+unwrapped at 32 ksample/s, including the boundary between blocks; the coarse
+mixer phase is then restored at each fitted block midpoint. A regression test
+alternates +60/-60 Hz every block while keeping physical phase continuous. The
+earlier midpoint-frequency extrapolation incorrectly reported slips in this case.
+The current slip flag means a filtered adjacent-sample phase increment exceeded
+pi/2; it is an ambiguity warning, not proof or a count of physical cycle slips.
+Full-cycle jumps or device-side losses can be invisible to a single tone.
+
+The frequency used for acquisition is a phase slope over approximately 100 ms.
+The phase-margin calculation budgets half a control period for that window and
+half for the actuator zero-order hold, in addition to age and transport budgets.
+
+## Present reference source
+
+The owner identifies an HP8656A, expected to be unmodulated. The front-panel
+AM/FM settings, selected reference, fitted timebase option, calibration state,
+and scope model have not been independently established.
+HP's [8656A manual, Table 1-1 and Table 4-2](https://manuals.chudov.com/HP/HP-8656A-Signal-Generator-1981-WW.pdf)
+specifies residual FM even in CW mode: below 15 Hz RMS in a 0.3-3 kHz
+post-detection bandwidth, and below 30 Hz RMS in 0.05-15 kHz, for the band
+containing 50 MHz. Those are specification limits in different bandwidths from
+this loop, not measurements of this instrument and not a diagnosis of observed
+phase variation. Establish the generator's reference and observe it independently
+before assigning a noise floor to the Si5351B or recommending replacement hardware.
+
 ## Legacy review, October 13, 2026
 
 The review was read-only. Existing scripts were not executed or replaced.

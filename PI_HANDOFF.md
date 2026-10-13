@@ -1,10 +1,10 @@
 # Raspberry Pi handoff
 
-Last verified: October 12, 2026.
+Last verified: October 13, 2026.
 
 ## Owner's intent and preferences
 
-Prepare this Pi for a new project whose requirements will come later. Use SSH keys for
+Implement the beacon-disciplined SDR clock project described in README.md. Use SSH keys for
 routine access and Git for version control and deployment, so updates do not require
 interactive SSH sessions. Keep password login enabled on the Pi for fallback access.
 
@@ -99,12 +99,29 @@ ssh -o BatchMode=yes -o ConnectTimeout=10 project-pi 'git -C ~/projects/new-proj
 
 The hashes should match and the remote status should be empty.
 
-## Work remaining once project details arrive
+## Current application and bench state
 
-- Choose the application, dependencies, and runtime.
-- Add service startup, automatic restarts, and health checks as appropriate.
+- Application: `beacon_clock`, Python/NumPy, invoked from the checkout with
+  `/home/rrrodriguez13/sdr/.env/bin/python -m beacon_clock`.
+- Hardware dependencies are already present in that environment: pyrtlsdr,
+  librtlsdr, and smbus2. Password fallback access was not changed.
+- Data lives in `/home/rrrodriguez13/clock-runs/`, outside Git. No CSV files or raw
+  IQ recordings are produced. Do not delete existing experiments automatically.
+- Read [docs/validation.md](docs/validation.md) for measured results, calibration
+  caveats, and remaining hardware gates. The source is HP8656A, expected CW;
+  its reference selection and modulation settings need bench verification.
+- Latest observed DAC code is 2404; Si5351B APR is 120 ppm. Normal corrections
+  use volatile DAC writes. Do not reset/reinitialize the clock during acquisition.
+- No startup service is installed/enabled. Add startup, automatic restarts, and
+  health checks after interactive phase-tracking and acceptance gates pass.
 - Git currently deploys source files only; it does not restart applications or install dependencies.
 - No scheduled deployment, CI workflow, or hosted Git backup has been configured.
 - Router DHCP reservation for `192.168.0.145` was recommended but has not been verified or configured.
 - The placeholder Pi directory `new-project` can be renamed when the project is defined;
   update the local `pi` remote and provisioning script if doing so.
+
+For longer experiments, detach the process and redirect stdout to a file under
+`~/clock-runs/`; SSH connections occasionally disconnect. Use an explicit duration
+and a new output directory. Monitor never actuates the DAC. Do not overlap CPU
+regression tests with live performance measurements. Verify the completed run's
+JSON rather than interpreting a closed SSH connection as a failed experiment.
