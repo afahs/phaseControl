@@ -158,6 +158,30 @@ class TelemetryTests(unittest.TestCase):
 
 
 class IntegrationTests(unittest.TestCase):
+    def test_i2c_failure_faults_and_stops_updates(self):
+        class BrokenDac:
+            def read(self):
+                return 2048
+            def write(self, code):
+                raise OSError("injected I2C error")
+        with tempfile.TemporaryDirectory() as root:
+            c = Config()
+            summary = run(c, SimulatedRig(c), Path(root)/"run", 2, BrokenDac(),
+                          calibration(c), "discipline")
+            self.assertIn("injected I2C error", summary["failure"])
+            self.assertEqual(summary["final_state"], int(State.FAULT))
+            self.assertEqual(summary["dac_writes"], 0)
+
+    def test_disabled_telemetry_keeps_summary(self):
+        with tempfile.TemporaryDirectory() as root:
+            c = replace(Config(), telemetry_enabled=False)
+            path = Path(root)/"run"
+            summary = run(c, SimulatedRig(c), path, 1)
+            metadata, rows = read_run(path)
+            self.assertEqual(len(rows), 0)
+            self.assertFalse(metadata["telemetry"]["enabled"])
+            self.assertGreater(summary["blocks"], 100)
+
     def test_discipline_and_deterministic_replay(self):
         with tempfile.TemporaryDirectory() as root:
             c = Config()

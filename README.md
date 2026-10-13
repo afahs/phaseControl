@@ -82,6 +82,11 @@ and digital tuning quantization can cause a constant bias. Independently calibra
 `expected_offset_hz` before treating a zero pilot residual as exact 28.8 MHz.
 The Si5351 crystal reference frequency is an assumption until measured.
 
+Default tuner gain is 0 dB. The initial live check clipped at the previously
+proposed 9.9 dB setting; clipping is rejected rather than hidden by the estimator.
+Set `telemetry_enabled` to false in the JSON configuration to benchmark without
+detailed telemetry; a final run summary is still saved.
+
 Controller `bandwidth_hz` means second-order natural frequency, not equivalent
 noise bandwidth. Gains include measured Hz/code, and the PI/integrator model
 checks at least 45 degrees phase margin including measurement age and ZOH delay.

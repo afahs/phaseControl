@@ -46,6 +46,8 @@ class Writer:
             raise RuntimeError(f"cannot start telemetry: {self.error}")
 
     def append(self, values):
+        if not self.config.telemetry_enabled:
+            return
         seq = self.sequence
         self.sequence += 1
         if self.capped or self.error:
@@ -77,7 +79,8 @@ class Writer:
         payload = dict(self.metadata, format="beacon-clock", version=1,
                        dtype=DTYPE.descr, record_bytes=DTYPE.itemsize,
                        config=asdict(self.config), final=final, summary=summary,
-                       telemetry=dict(records_written=self.written, records_dropped=self.dropped,
+                       telemetry=dict(enabled=self.config.telemetry_enabled,
+                                      records_written=self.written, records_dropped=self.dropped,
                                       capped=self.capped, error=self.error,
                                       complete=final and not self.error and not self.capped and not self.dropped))
         encoded = json.dumps(payload, indent=2, allow_nan=False).encode()

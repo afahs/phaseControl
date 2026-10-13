@@ -13,7 +13,7 @@ class Config:
     center_hz: float = 49_750_000.0
     pilot_hz: float = 50_000_000.0
     expected_offset_hz: float = 250_000.0
-    gain_db: float = 9.9
+    gain_db: float = 0.0
     device: int = 0
     search_hz: float = 10_000.0
     control_hz: float = 10.0
@@ -35,6 +35,7 @@ class Config:
     max_clip_fraction: float = 0.01
     max_output_bytes: int = 256 * 1024 * 1024
     writer_batches: int = 4
+    telemetry_enabled: bool = True
 
     @property
     def block_s(self):
@@ -72,6 +73,8 @@ class Config:
             raise ValueError("invalid quality limits")
         if self.max_output_bytes < 65536 or not 1 <= self.writer_batches <= 16:
             raise ValueError("invalid telemetry limits")
+        if not isinstance(self.telemetry_enabled, bool):
+            raise ValueError("telemetry_enabled must be boolean")
         return self
 
     @classmethod

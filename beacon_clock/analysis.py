@@ -71,13 +71,18 @@ def analyze(path, plots=False):
             total += float(np.sum(dd*dd / (2*tau*tau)))
             count += len(dd)
             taus.append(tau)
-            for start in range(0, len(s) - factor + 1, factor):
-                coherences.append(float(abs(np.mean(np.exp(1j*s["phase"][start:start+factor])))))
+            for start in range(0, len(s) - factor, factor):
+                phase = s["phase"][start:start+factor+1]
+                # Integrate exp(i*phase) along linear phase intervals. Unlike an
+                # average of sparse phasors this includes measured phase winding.
+                phasor = np.exp(.5j*(phase[:-1]+phase[1:])) * np.sinc(np.diff(phase)/(2*np.pi))
+                coherences.append(float(abs(np.mean(phasor))))
         if count:
             result["allan"].append(dict(tau_s=float(np.mean(taus)), deviation=float(np.sqrt(total/count)),
                                         terms=count))
             result["coherence"].append(dict(integration_s=float(np.mean(taus)),
-                                            pilot_coherence=float(np.mean(coherences))))
+                                            pilot_coherence=float(np.mean(coherences)),
+                                            model="piecewise-linear recorded phase; faster noise unresolved"))
     if plots:
         import matplotlib
         matplotlib.use("Agg")

@@ -77,10 +77,13 @@ class PilotEstimator:
         self.mixed *= complex(math.cos(start_phase), -math.sin(start_phase))
         self.joined[:len(self.tail)] = self.tail
         self.joined[len(self.tail):] = self.mixed
-        filtered = np.convolve(self.joined, self.h, mode="valid")
         self.tail[:] = self.mixed[-len(self.tail):]
-        positions = np.arange(128 if first else 0, c.block_samples, 32)
-        z = filtered[positions]
+        start = 128 if first else 0
+        positions = np.arange(start, c.block_samples, 32)
+        # Compute only retained FIR outputs (polyphase decimation), not all 8192.
+        # The sliding view owns no memory and remains valid for this worker call.
+        windows = np.lib.stride_tricks.sliding_window_view(self.joined, len(self.h))
+        z = np.einsum("ij,j->i", windows[start::32], self.h[::-1], optimize=False)
         times = (block.sample_index + positions - (len(self.h) - 1) / 2) / c.sample_rate
         t = float(times.mean())
         x = times - t

@@ -26,7 +26,7 @@ class Distribution:
 
     def report(self):
         return dict(count=self.count, mean_s=self.total/max(1, self.count), max_s=self.maximum,
-                    p99_upper_s=float((np.searchsorted(np.cumsum(self.bins), .99*self.count)+1)*.00005),
+                    p99_upper_s=float((np.searchsorted(np.cumsum(self.bins), .99*self.count)+1)*.00005) if self.count else 0.,
                     histogram_overflow=int(self.bins[-1]))
 
 
@@ -52,7 +52,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                          calibration=asdict(calibration) if calibration else None,
                          initial_code=code, instruments=metadata_extra or {},
                          time_basis="delivered sample index; no hardware timestamps"), status=status)
-    dsp, age_stats, i2c_stats = Distribution(), Distribution(), Distribution()
+    dsp, age_stats, i2c_stats, command_age_stats = Distribution(), Distribution(), Distribution(), Distribution()
     start = time.monotonic()
     cpu_start = time.process_time()
     blocks = invalid = stale_count = slips = missed = updates = writes = 0
@@ -139,6 +139,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                             code = int(requested)
                             i2c_s = time.perf_counter() - begin
                             i2c_stats.add(i2c_s)
+                            command_age_stats.add(time.monotonic() - block.arrival)
                             writes += 1
                             if age + i2c_s > config.max_age_s:
                                 if controller:
@@ -186,6 +187,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                        final_code=code, final_state=int(last_state), failure=failure,
                        wall_seconds=elapsed, cpu_seconds=time.process_time()-cpu_start,
                        dsp=dsp.report(), callback_age=age_stats.report(), i2c=i2c_stats.report(),
+                       command_age=command_age_stats.report(),
                        dropped_blocks=pool.dropped_blocks, queue_high_water=pool.high_water,
                        source_settings=getattr(source, "settings", {}))
         writer.close(summary)
