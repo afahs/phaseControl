@@ -13,6 +13,7 @@ from .hardware import Dac
 from .runtime import run
 from .simulation import SimulatedRig
 from .telemetry import read_run, VALID, STALE
+from .diagnostics import spectrum
 
 
 def parser():
@@ -40,6 +41,10 @@ def parser():
     s.add_argument("--output", required=True)
     s = sub.add_parser("inspect", help="read DAC and clock configuration without writing")
     s.add_argument("--config")
+    s = sub.add_parser("spectrum", help="bounded receive-only high-resolution spectrum; no raw IQ saved")
+    s.add_argument("--config")
+    s.add_argument("--output", required=True)
+    s.add_argument("--seconds", type=float, default=2.)
     s = sub.add_parser("defaults")
     s.add_argument("--output", required=True)
     return p
@@ -95,7 +100,9 @@ def main(argv=None):
             return 0
         else:
             c = Config.load(args.config)
-            if args.command == "inspect":
+            if args.command == "spectrum":
+                result = spectrum(c, RtlSource(c), args.output, args.seconds)
+            elif args.command == "inspect":
                 dac = Dac(c)
                 try:
                     result = dict(dac_code=dac.read(), clock=dac.inspect_clock())

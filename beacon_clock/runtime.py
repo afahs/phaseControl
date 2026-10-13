@@ -57,6 +57,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
     start = time.monotonic()
     cpu_start = time.process_time()
     blocks = invalid = stale_count = slips = missed = updates = writes = 0
+    invalid_causes = dict(amplitude=0, snr=0, coherence=0, clipping=0, slip=0, stale=0)
     locked_blocks = 0
     next_control = next_log = 0.
     segment = 0
@@ -101,6 +102,12 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                     segment += 1
                 if not valid:
                     invalid += 1
+                    invalid_causes["amplitude"] += int(measurement.amplitude < config.min_amplitude)
+                    invalid_causes["snr"] += int(measurement.snr_db < config.min_snr_db)
+                    invalid_causes["coherence"] += int(measurement.coherence < config.min_coherence)
+                    invalid_causes["clipping"] += int(measurement.clipping > config.max_clip_fraction)
+                    invalid_causes["slip"] += int(measurement.slip)
+                    invalid_causes["stale"] += int(stale)
                     frequency_window.clear()
                     if controller:
                         controller.hold()
@@ -194,6 +201,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
         elapsed = time.monotonic() - start
         pool = getattr(source, "pool", source)
         summary = dict(blocks=blocks, invalid_blocks=invalid, stale_blocks=stale_count,
+                       invalid_causes=invalid_causes,
                        slip_events=slips, updates=updates, dac_writes=writes,
                        missed_control_deadlines=missed, locked_fraction=locked_blocks/max(1, blocks),
                        final_code=code, final_state=int(last_state), failure=failure,

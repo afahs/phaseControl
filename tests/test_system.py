@@ -13,7 +13,7 @@ from beacon_clock.estimator import Measurement, PilotEstimator
 from beacon_clock.simulation import SimulatedRig
 from beacon_clock.runtime import run
 from beacon_clock.telemetry import Writer, read_run, VALID, DTYPE
-from beacon_clock.analysis import clean_segments
+from beacon_clock.analysis import clean_segments, analyze
 from beacon_clock.characterize import characterize
 from beacon_clock.cli import replay
 
@@ -191,6 +191,25 @@ class TelemetryTests(unittest.TestCase):
         rows[4:]["record"] += 2
         chunks = clean_segments(rows)
         self.assertEqual([len(x) for x in chunks], [4,4])
+
+    def test_allan_deviation_matches_known_frequency_ramp(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/"run"
+            c = Config()
+            writer = Writer(path, c, {})
+            fractional_drift = 1e-10
+            for i in range(60):
+                row = list(values(i))
+                row[2] = 2*np.pi*c.pilot_hz*.5*fractional_drift*row[1]**2
+                writer.append(tuple(row))
+                if i % 10 == 9:
+                    time.sleep(.01)
+            writer.close({})
+            result = analyze(path)
+            self.assertGreater(len(result["allan"]), 2)
+            for point in result["allan"]:
+                expected = fractional_drift*point["tau_s"]/np.sqrt(2)
+                self.assertAlmostEqual(point["deviation"]/expected, 1., places=6)
 
 
 class IntegrationTests(unittest.TestCase):
