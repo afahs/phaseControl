@@ -113,9 +113,13 @@ class Writer:
                             self.bytes += accepted * DTYPE.itemsize
                         if self.status:
                             r = batch[count - 1]
-                            print(f"t={r['t']:.1f}s state={int(r['state'])} "
-                                  f"error={r['frequency']:+.4f}Hz DAC={int(r['code'])} "
-                                  f"age={r['age_s']*1000:.1f}ms", flush=True)
+                            try:
+                                print(f"t={r['t']:.1f}s state={int(r['state'])} "
+                                      f"error={r['frequency']:+.4f}Hz DAC={int(r['code'])} "
+                                      f"age={r['age_s']*1000:.1f}ms", flush=True)
+                            except (BrokenPipeError, OSError):
+                                # An SSH/stdout disconnect must not stop binary logging.
+                                self.status = False
                     finally:
                         self.free.put_nowait(batch)
         except Exception as exc:

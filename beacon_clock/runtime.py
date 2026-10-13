@@ -1,4 +1,5 @@
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from collections import deque
 import math
 import platform
 import queue
@@ -63,6 +64,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
     previous_index = None
     previous_source_segment = None
     pending_flags = 0
+    frequency_window = deque(maxlen=max(4, math.ceil(1/(config.control_hz*config.block_s))))
     last_state = State.MONITOR if not controller else controller.state
     failure = None
     source_started = False
@@ -87,6 +89,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                 previous_source_segment = block.segment
                 if gap:
                     estimator.reset()
+                    frequency_window.clear()
                     if controller:
                         controller.hold()
                 measurement = estimator.process(block)
@@ -98,10 +101,13 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                     segment += 1
                 if not valid:
                     invalid += 1
+                    frequency_window.clear()
                     if controller:
                         controller.hold()
                     if stale:
                         estimator.reset()
+                else:
+                    frequency_window.append((measurement.t, measurement.phase))
                 previous_valid = valid
                 slips += int(measurement.slip)
                 stale_count += int(stale)
@@ -114,12 +120,18 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                 i2c_s = 0.
                 measurement.segment = segment
                 due_control = measurement.t >= next_control
+                due_log = measurement.t >= next_log
+                if (due_control or due_log) and len(frequency_window) >= 4:
+                    times, phases = np.array(frequency_window).T
+                    times = times - times.mean()
+                    smoothed_frequency = float(np.dot(times, phases-phases.mean()) / np.dot(times, times) / (2*np.pi))
+                    measurement = replace(measurement, frequency=smoothed_frequency)
                 if due_control:
                     missed += max(0, int((measurement.t - next_control)*config.control_hz))
                     next_control = (math.floor(measurement.t*config.control_hz)+1)/config.control_hz
                     requested = code
                     if controller:
-                        requested = controller.update(measurement, age)
+                        requested = controller.update(replace(measurement, valid=valid and len(frequency_window)>=4), age)
                     elif schedule and valid:
                         target = schedule(measurement.t)
                         requested = int(max(code-config.max_step_codes, min(code+config.max_step_codes, target)))
@@ -154,7 +166,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                 locked_blocks += int(locked)
                 # Events are reflected in continuity/state fields; periodic records
                 # remain uniformly scheduled for phase statistics.
-                if measurement.t >= next_log:
+                if due_log:
                     next_log = (math.floor(measurement.t*config.telemetry_hz)+1)/config.telemetry_hz
                     flags = (VALID if valid else 0) | (LOCKED if locked else 0)
                     flags |= pending_flags

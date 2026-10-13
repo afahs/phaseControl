@@ -11,7 +11,7 @@ class State(IntEnum):
 
 
 def phase_margin(config, delay_s):
-    """PI + integrator model with pure delay and half-update ZOH delay.
+    """PI + integrator, physical/transport delay, window and ZOH delays.
 
     bandwidth_hz denotes the second-order natural frequency, not ENBW.
     """
@@ -19,12 +19,14 @@ def phase_margin(config, delay_s):
     z = config.damping
     wc = wn * math.sqrt(2 * z*z + math.sqrt(4 * z**4 + 1))
     return math.degrees(math.atan2(2 * z * wn * wc, wn*wn)
-                        - wc * (delay_s + .5 / config.control_hz))
+                        - wc * (delay_s + 1 / config.control_hz))
 
 
 class Controller:
     def __init__(self, config, calibration, initial_code):
         calibration.validate(config)
+        if not config.dac_min <= initial_code <= config.dac_max:
+            raise ValueError("initial DAC code outside operating limits")
         if phase_margin(config, calibration.delay_s + config.max_age_s) < 45:
             raise ValueError("modeled phase margin below 45 degrees; reduce bandwidth")
         self.c, self.cal = config, calibration

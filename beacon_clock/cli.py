@@ -58,7 +58,8 @@ def replay(path, calibration_path, output):
         if margin < 45:
             result[str(bandwidth)] = dict(phase_margin_deg=margin, rejected=True)
             continue
-        controller = Controller(cfg, cal, metadata["initial_code"])
+        initial = metadata["initial_code"]
+        controller = Controller(cfg, cal, cal.center_code if initial == 65535 else initial)
         commands = []
         previous = None
         for r in rows:

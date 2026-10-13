@@ -117,12 +117,48 @@ class ControlTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Controller(c, cal, 2048)
 
+    def test_bandwidth_candidates_against_physical_model(self):
+        for bandwidth in (.03, .1, .3):
+            c = replace(Config(), bandwidth_hz=bandwidth)
+            cal = calibration(c)
+            if phase_margin(c, cal.delay_s+c.max_age_s) < 45:
+                with self.assertRaises(ValueError):
+                    Controller(c, cal, 2048)
+                continue
+            ctrl = Controller(c, cal, 2048)
+            phase = 0.
+            delayed = 2048
+            tail = []
+            for k in range(4000):
+                freq = 8 - .08*(delayed-2048) + .0002*k*.1
+                phase += 2*np.pi*freq*.1
+                delayed = ctrl.update(Measurement(k*.1,phase,freq,.3,40,1,0,True,0))
+                if k > 3500:
+                    tail.append(freq)
+            self.assertEqual(ctrl.state, State.TRACK)
+            self.assertLess(abs(np.mean(tail)), .02)
+            self.assertLess(np.std(tail), .1)
+
 
 def values(i):
     return (i*8192, i*.1, i*.01, .1, 1, .3, 40., .99, 0., .001, .001, 0., 2048, 1, VALID)
 
 
 class TelemetryTests(unittest.TestCase):
+    def test_closed_stdout_does_not_stop_binary_writer(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as root:
+            path = Path(root)/"run"
+            with patch("builtins.print", side_effect=BrokenPipeError("disconnected")):
+                writer = Writer(path, Config(), {}, status=True)
+                for i in range(10):
+                    writer.append(values(i))
+                writer.close({})
+            metadata, rows = read_run(path)
+            self.assertEqual(len(rows), 10)
+            self.assertIsNone(metadata["telemetry"]["error"])
+            del rows
+
     def test_cap_and_roundtrip(self):
         with tempfile.TemporaryDirectory() as root:
             path = Path(root)/"run"
