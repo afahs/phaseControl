@@ -27,6 +27,7 @@ def parser():
         s.add_argument("--duration", type=float, default=60.)
         s.add_argument("--status", action="store_true")
         s.add_argument("--calibration")
+        s.add_argument("--instruments", help="JSON object of instrument models, reference settings, and bench observations")
         s.add_argument("--initialize-clock", action="store_true",
                        help="configure 28.8 MHz once, before acquisition; default verifies existing settings")
         s.add_argument("--step", type=int, default=8)
@@ -113,7 +114,10 @@ def main(argv=None):
                     raise ValueError("duration must be in (0, 86400] seconds")
                 source = SimulatedRig(c) if args.simulate else RtlSource(c)
                 actuator = None
-                extra = dict(external_clock_shared="owner reports tuner and ADC use injected clock")
+                extra = json.loads(Path(args.instruments).read_text()) if args.instruments else {}
+                if not isinstance(extra, dict):
+                    raise ValueError("--instruments must contain a JSON object")
+                extra["simulation"] = args.simulate
                 try:
                     if args.command != "monitor":
                         actuator = source if args.simulate else Dac(c)

@@ -16,6 +16,7 @@ from beacon_clock.telemetry import Writer, read_run, VALID, DTYPE
 from beacon_clock.analysis import clean_segments, analyze
 from beacon_clock.characterize import characterize
 from beacon_clock.cli import replay
+from beacon_clock.diagnostics import spectrum
 
 
 def calibration(c, gain=-.08):
@@ -50,6 +51,16 @@ class AcquisitionTests(unittest.TestCase):
 
 
 class EstimatorTests(unittest.TestCase):
+    def test_spectrum_wraparound_and_independent_phase_windows(self):
+        # A search across DC includes the final FFT bin; neighbor access must wrap.
+        c = replace(Config(), expected_offset_hz=0.)
+        with tempfile.TemporaryDirectory() as root:
+            result = spectrum(c, SimulatedRig(c, offset=-12., drift=0),
+                              Path(root)/"spectrum.json", seconds=.5)
+        self.assertAlmostEqual(result["peaks"][0]["residual_hz"], -12., delta=1.)
+        self.assertEqual(result["phase_windows"]["large_change_pairs"], 0)
+        self.assertLess(result["phase_windows"]["wrapped_change_abs_p99_rad"], .05)
+
     def test_frequency_phase_and_mixer_reconstruction(self):
         c = Config()
         for f in (-1200., -7.3, 0., 413.2):
