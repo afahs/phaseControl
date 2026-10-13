@@ -92,12 +92,12 @@ def analyze(path, plots=False):
         fig, axes = plt.subplots(3, 1, figsize=(10, 8), layout="constrained")
         for indexes in segments:
             s = rows[indexes]
-            axes[0].plot(s["t"], s["frequency"], linewidth=.6, color="tab:blue")
-            axes[1].plot(s["t"], (s["phase"]-s["phase"][0])/(2*np.pi*pilot)*1e9,
+            axes[0].plot(s["t"], s["phase"]-s["phase"][0],
                          linewidth=.6, color="tab:purple")
+            axes[1].plot(s["t"], s["frequency"], linewidth=.6, color="tab:blue")
         fig.suptitle("Combined reference/path/receiver/clock measurements\nPhase origin reset per continuous segment", fontsize=11)
-        axes[0].set_ylabel("Pilot error (Hz)")
-        axes[1].set_ylabel("Relative equivalent time (ns)")
+        axes[0].set_ylabel("Relative phase deviation (rad)")
+        axes[1].set_ylabel("Pilot frequency error (Hz)")
         axes[1].set_xlabel("Sample time (s)")
         if result["allan"]:
             axes[2].loglog([p["tau_s"] for p in result["allan"]],

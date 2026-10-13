@@ -139,8 +139,13 @@ overlapping Allan deviation from uniform strided subseries without interpolation
 or drift subtraction. At 10 Hz scheduling on 8 ms blocks, every other measurement
 normally gives a uniform 200 ms cadence. Reports include the cadence method and
 number of terms. Coherence is measured at the pilot frequency and retains drift.
-Equivalent timing is phase divided by `2*pi*pilot_hz`; it includes reference,
-propagation, receiver, and clock contributions. In-loop error is not an independent
+Plots show unwrapped phase deviation in radians as the primary error trace,
+relative to the first valid record in each continuous segment. Gaps are not joined;
+the arbitrary phase origin after reacquisition is not a measured phase jump.
+These historical records do not contain the controller's captured phase setpoint,
+so this trace is relative phase variation, not the exact servo setpoint error.
+Phase includes reference, propagation, receiver, and clock contributions.
+In-loop error is not an independent
 measurement of clock accuracy.
 
 ## Validation and limits
