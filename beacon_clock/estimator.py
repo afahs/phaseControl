@@ -44,6 +44,7 @@ class PilotEstimator:
     def reset(self):
         self.coarse = None
         self.previous = None
+        self.last_mixed_phase = None
         self.segment = -1
         self.next_index = None
         self.tail.fill(0)
@@ -88,6 +89,15 @@ class PilotEstimator:
         t = float(times.mean())
         x = times - t
         angles = np.unwrap(np.angle(z))
+        if self.last_mixed_phase is not None:
+            angles += 2*np.pi*round((self.last_mixed_phase-float(angles[0]))/(2*np.pi))
+        increments = np.diff(angles)
+        boundary_increment = (float(angles[0])-self.last_mixed_phase
+                              if self.last_mixed_phase is not None else 0.)
+        # Follow the contiguous 32 ksample/s filtered phase, rather than
+        # extrapolating an 8 ms fitted frequency to the next block midpoint.
+        # Fast FM can defeat that midpoint predictor without any cycle ambiguity.
+        slip = abs(boundary_increment) > math.pi/2 or bool(np.any(abs(increments) > math.pi/2))
         phase_mix = float(angles.mean())
         slope = float(np.dot(x, angles - phase_mix) / np.dot(x, x))
         derotated = z * np.exp(-1j * (phase_mix + slope * x))
@@ -96,13 +106,7 @@ class PilotEstimator:
         snr = float(10 * np.log10(max(amplitude ** 2, 1e-20) / max(noise, 1e-20)))
         coherence = float(amplitude / max(float(np.mean(abs(z))), 1e-20))
         frequency = self.coarse + slope / (2 * np.pi)
-        phase = math.remainder(phase_mix + 2 * math.pi * self.coarse * t, 2 * math.pi)
-        slip = False
-        if self.previous:
-            old = self.previous
-            predicted = old.phase + 2 * math.pi * old.frequency * (t - old.t)
-            phase += 2 * math.pi * round((predicted - phase) / (2 * math.pi))
-            slip = abs(phase - predicted) > math.pi / 2
+        phase = phase_mix + 2 * math.pi * self.coarse * t
         valid = (amplitude >= c.min_amplitude and snr >= c.min_snr_db
                  and coherence >= c.min_coherence and clipping <= c.max_clip_fraction
                  and abs(frequency) < c.search_hz and not slip)
@@ -110,6 +114,7 @@ class PilotEstimator:
                         valid, block.segment, slip)
         if valid:
             self.previous = m
+            self.last_mixed_phase = float(angles[-1])
         else:
             self.reset()
         return m

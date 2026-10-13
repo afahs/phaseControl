@@ -51,6 +51,26 @@ class AcquisitionTests(unittest.TestCase):
 
 
 class EstimatorTests(unittest.TestCase):
+    def test_continuous_phase_survives_fast_frequency_changes(self):
+        c = Config()
+        estimator = PilotEstimator(c)
+        phase_at_start = 0.
+        for k in range(30):
+            f = 60. if k % 2 == 0 else -60.
+            index = k*c.block_samples
+            t = (index+np.arange(c.block_samples))/c.sample_rate
+            angle = 2*np.pi*c.expected_offset_hz*t + phase_at_start + 2*np.pi*f*(t-t[0])
+            z = .3*np.exp(1j*angle)
+            raw = np.empty(2*c.block_samples, dtype=np.uint8)
+            raw[::2] = np.rint(127.5+128*z.real).astype(np.uint8)
+            raw[1::2] = np.rint(127.5+128*z.imag).astype(np.uint8)
+            m = estimator.process(Block(raw, sample_index=index))
+            self.assertTrue(m.valid)
+            self.assertFalse(m.slip)
+            expected = phase_at_start+2*np.pi*f*(m.t-t[0])
+            self.assertAlmostEqual(m.phase, expected, delta=.03)
+            phase_at_start += 2*np.pi*f*c.block_s
+
     def test_spectrum_wraparound_and_independent_phase_windows(self):
         # A search across DC includes the final FFT bin; neighbor access must wrap.
         c = replace(Config(), expected_offset_hz=0.)
