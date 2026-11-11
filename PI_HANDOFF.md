@@ -1,6 +1,6 @@
 # Raspberry Pi handoff
 
-Last verified: October 13, 2026.
+Last verified: November 11, 2026.
 
 ## Owner's intent and preferences
 
@@ -126,11 +126,15 @@ The hashes should match and the remote status should be empty.
   the owner reports an external rubidium reference feeding only that generator,
   and a Tektronix TDS2012 scope. The rubidium model/frequency are unspecified;
   modulation settings need bench verification.
-- Latest observed DAC code is 2404; Si5351B APR is 120 ppm. Normal corrections
+- Latest observed DAC code is 3137; Si5351B APR is 30 ppm. Normal corrections
   use volatile DAC writes. Do not reset/reinitialize the clock during acquisition.
 - No startup service is installed/enabled. Add startup, automatic restarts, and
   health checks after interactive phase-tracking and acceptance gates pass.
 - Git currently deploys source files only; it does not restart applications or install dependencies.
+- Latest local calibration: `~/clock-runs/local3137-20261111/calibration/calibration.json`,
+  -0.789006 Hz/code at 30 ppm, measured codes 3129-3145. The subsequent five-minute
+  receive-only baseline finished with DAC 3137 at both endpoints and zero writes.
+  Feedback remains stopped. See the November 11 update in `docs/validation.md`.
 - GitHub hosts source history. Scheduled deployment and CI remain unconfigured.
 - Router DHCP reservation for `192.168.0.145` was recommended but has not been verified or configured.
 - The placeholder Pi directory `new-project` can be renamed when the project is defined;

@@ -1,4 +1,49 @@
-# Implementation and bench validation, October 13, 2026
+# Implementation and bench validation
+
+## November 11, 2026: operating-point calibration and fixed-DAC baseline
+
+Evidence: `~/clock-runs/local3137-20261111` on `project-pi`, copied locally under
+`data/local3137-20261111`. Clock readback matched nominal 28.8 MHz and APR 30 ppm.
+Generator panel/reference-lock state was not newly verified. Scripts are
+`beacon_clock.calibrate_baseline` and `beacon_clock.analyze_baseline`.
+
+Ten ABBA cycles at 3137 +/-8, with 3-second dwells and the first second excluded
+from each dwell, measured **-0.789006 Hz/code**. The ten cycle slopes had sample
+standard deviation **0.007330 Hz/code**. This is 3.22% lower magnitude than the
+previous -0.815287 Hz/code calibration centered at 2048. The new calibration
+applies to codes 3129-3145. Its 104 ms delay remains an unmeasured buffering
+budget. Calibration rejected startup and one measurement near 78.73 seconds;
+both carried estimator ambiguity warnings, not proof of physical cycle slips.
+
+The subsequent 300-second monitor run had 37,500 complete telemetry records,
+zero DAC writes, no dropped or stale blocks, and code 3137 verified before/after.
+Monitor records use code 65535 as an unknown-code sentinel; endpoint observations
+are saved separately. Its only invalid/slip warning was at startup (0.004 s).
+No invalid event recurred near 77-79 seconds. Feedback remains off.
+
+Timing at 50 MHz accumulated approximately +5301 ns over the baseline. To expose
+short excursions independently of that drift, subtract a centered 10.008-second
+moving mean within each valid segment, omitting window edges and startup FIR
+transients. Apply exactly the same filter to the previous closed-loop tracking
+records; these metrics are **local residuals, not absolute timing/lock error**:
+
+| Recording | Local residual RMS (ns) | Absolute peak (ns) |
+|---|---:|---:|
+| Fixed DAC 3137 | 2.434 | 10.768 |
+| Previous closed trial 1 | 1.068 | 7.519 |
+| Previous closed trial 2 | 1.000 | 8.648 |
+| Previous closed trial 3 | 1.032 | 6.977 |
+
+The largest baseline local excursion occurred at 68.22 s; within +/-3 s its
+maximum callback age was 3.50 ms and DSP time 3.28 ms. Thus comparable excursions
+exist without DAC writes and without a coincident large measured processing
+delay. This weakens a DAC-switching-only explanation; it does not locate the
+cause among generator/reference, clock/VC supply, receiver/path, or estimation,
+nor exclude unmeasured upstream timing effects. One sequential baseline is not
+a controlled statistical proof of closed-loop improvement. The new local
+calibration has not yet been exercised in another feedback run.
+
+## October 13, 2026 historical validation
 
 The software is implemented and deployed through Git. Frequency acquisition has
 been demonstrated in short tests. Sustained phase lock and the project's final
