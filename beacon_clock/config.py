@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass, fields
 import json
 import math
+from bisect import bisect_right
 from pathlib import Path
 
 
@@ -99,6 +100,7 @@ class Calibration:
     valid: bool = False
     slope_std: float = 0.0
     measured_range: tuple = (0, 4095)
+    gain_table: tuple = ()  # ordered (DAC code, local Hz/code) pairs
 
     def validate(self, config):
         if not self.valid or not math.isfinite(self.hz_per_code) or abs(self.hz_per_code) < 1e-5:
@@ -110,7 +112,69 @@ class Calibration:
                 raise ValueError(f"calibration mismatch: {key}")
         if not config.dac_min <= self.center_code <= config.dac_max:
             raise ValueError("calibration center outside safe DAC range")
+        if self.gain_table:
+            if len(self.gain_table) < 2:
+                raise ValueError('gain table needs at least two points')
+            previous = -math.inf
+            for code, gain in self.gain_table:
+                if (not math.isfinite(code) or not math.isfinite(gain)
+                        or code <= previous or abs(gain) < 1e-5
+                        or gain * self.hz_per_code <= 0):
+                    raise ValueError('gain table must be ordered, finite, and have consistent nonzero sign')
+                previous = code
+            if self.gain_table[0][0] > config.dac_min or self.gain_table[-1][0] < config.dac_max:
+                raise ValueError('gain table must cover the entire configured DAC range')
         return self
+
+    def gain_at(self, code):
+        if not self.gain_table:
+            return self.hz_per_code
+        points = self.gain_table
+        i = bisect_right([p[0] for p in points], code)-1
+        if i < 0:
+            return points[0][1]
+        if i >= len(points)-1:
+            return points[-1][1]
+        a, ga = points[i]
+        b, gb = points[i+1]
+        return ga+(gb-ga)*(code-a)/(b-a)
+
+    def shift_code(self, code, delta_hz):
+        """Invert the integral of interpolated local gain, preserving the bias anchor.
+
+        Endpoint slopes extend mathematical proposals for anti-windup; controller
+        output limits remain inside the measured table. Scalar files retain the
+        original arithmetic exactly.
+        """
+        if not self.gain_table:
+            return code + delta_hz/self.hz_per_code
+        points = self.gain_table
+        codes = [p[0] for p in points]
+        values = [0.]
+        for (a, ga), (b, gb) in zip(points, points[1:]):
+            values.append(values[-1]+(b-a)*(ga+gb)/2)
+        i = bisect_right(codes, code)-1
+        if i < 0:
+            value = (code-codes[0])*points[0][1]
+        elif i >= len(points)-1:
+            value = values[-1]+(code-codes[-1])*points[-1][1]
+        else:
+            dx = code-codes[i]
+            slope = (points[i+1][1]-points[i][1])/(codes[i+1]-codes[i])
+            value = values[i]+points[i][1]*dx+slope*dx*dx/2
+        target = value+delta_hz
+        sign = math.copysign(1., self.hz_per_code)
+        j = bisect_right([v*sign for v in values], target*sign)-1
+        if j < 0:
+            return codes[0]+target/points[0][1]
+        if j >= len(points)-1:
+            return codes[-1]+(target-values[-1])/points[-1][1]
+        gain = points[j][1]
+        slope = (points[j+1][1]-gain)/(codes[j+1]-codes[j])
+        delta = target-values[j]
+        # Stable quadratic root, also valid for constant gain.
+        root = math.copysign(math.sqrt(max(0.,gain*gain+2*slope*delta)),gain)
+        return codes[j]+2*delta/(gain+root)
 
     @classmethod
     def load(cls, path):

@@ -116,6 +116,8 @@ def main(argv=None):
                 if cal:
                     cal.validate(c)
                 if args.simulate:
+                    if cal and cal.gain_table:
+                        raise ValueError('RF simulator supports scalar gain only; mapped control is covered by nonlinear controller tests')
                     source = (SimulatedRig(c, gain=cal.hz_per_code, delay_s=cal.delay_s)
                               if cal else SimulatedRig(c))
                 else:

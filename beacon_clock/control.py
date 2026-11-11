@@ -93,11 +93,11 @@ class Controller:
         if dt <= 0 or dt > 2 / self.c.control_hz:
             self.hold(LockLoss.UPDATE_INTERVAL)
             return self.code
-        c, gain = self.c, self.cal.hz_per_code
+        c, gain = self.c, self.cal.gain_at(self.code)
         tolerance = max(.5, abs(gain) * .75)
         if self.state == State.ACQUIRE:
             # Keep a floating accumulator; actual output is still integer/no dithering.
-            self.bias = self.code - .75 * m.frequency / gain
+            self.bias = self.cal.shift_code(self.code, -.75 * m.frequency)
             desired = self.bias
             self.good = self.good + 1 if abs(m.frequency) < tolerance else 0
             if self.good >= 10:
@@ -108,9 +108,9 @@ class Controller:
         else:
             self.error = m.phase - self.target  # deliberately NOT wrapped
             candidate_integral = self.integral + self.ki * self.error * dt
-            desired = self.bias - (self.kp * self.error + candidate_integral) / gain
+            desired = self.cal.shift_code(self.bias, -(self.kp * self.error + candidate_integral))
             low, high = max(c.dac_min, self.code - c.max_step_codes), min(c.dac_max, self.code + c.max_step_codes)
-            old_desired = self.bias - (self.kp * self.error + self.integral) / gain
+            old_desired = self.cal.shift_code(self.bias, -(self.kp * self.error + self.integral))
             if low <= desired <= high or abs(desired - min(high, max(low, desired))) < abs(old_desired - min(high, max(low, old_desired))):
                 self.integral = candidate_integral
             self.lock_good = self.lock_good + 1 if abs(self.error) < .5 and abs(m.frequency) < tolerance else 0
