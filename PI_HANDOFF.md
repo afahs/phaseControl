@@ -14,7 +14,10 @@ interactive SSH sessions. Keep password login enabled on the Pi for fallback acc
 - Branch: `main`, tracking `pi/main`.
 - Commit identity, configured only for this repository: `Adam <adam.fahs@berkeley.edu>`.
 - Remote `pi`: `project-pi:/home/rrrodriguez13/projects/new-project`.
-- No hosted `origin` has been configured.
+- GitHub `origin`: `git@github.com:afahs/phaseControl.git`.
+- On November 11, 2026, the current project replaced the legacy GitHub tree,
+  retaining both histories through a merge. The Pi's `~/phaseControl` checkout
+  remains a legacy checkout; the running project is in `~/projects/new-project`.
 
 ## Access
 
@@ -77,6 +80,17 @@ Git rejects pushes if the checkout has local modifications. Keep runtime data, l
 and secrets outside tracked source files. Roll back by reverting locally and pushing
 the resulting commit; do not force-push.
 
+Publish each source update to GitHub as well. The Pi has verified GitHub SSH access:
+
+```powershell
+git push pi main
+ssh project-pi 'git -C ~/projects/new-project push origin main'
+```
+
+The live Pi checkout has the same GitHub `origin`. Verify GitHub's `main` hash
+matches the local and deployed commit after publishing. Local GitHub authentication
+has not been verified; the commands above use the Pi's existing credentials.
+
 Repository-local `core.sshCommand`:
 
 ```text
@@ -117,7 +131,7 @@ The hashes should match and the remote status should be empty.
 - No startup service is installed/enabled. Add startup, automatic restarts, and
   health checks after interactive phase-tracking and acceptance gates pass.
 - Git currently deploys source files only; it does not restart applications or install dependencies.
-- No scheduled deployment, CI workflow, or hosted Git backup has been configured.
+- GitHub hosts source history. Scheduled deployment and CI remain unconfigured.
 - Router DHCP reservation for `192.168.0.145` was recommended but has not been verified or configured.
 - The placeholder Pi directory `new-project` can be renamed when the project is defined;
   update the local `pi` remote and provisioning script if doing so.
