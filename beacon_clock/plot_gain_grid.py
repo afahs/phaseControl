@@ -24,7 +24,7 @@ def plot(root):
                label='Previous scalar calibration near code 2048')
     ax.axvline(3137,color='tab:orange',alpha=.5,label='Starting code for new feedback run')
     ax.set(xlabel='DAC code',ylabel='Local gain (Hz/code)',
-           title='30 ppm DAC calibration map: three ABBA cycles per point')
+           title='30 ppm DAC calibration map: three ABBA cycles, longer retries where needed')
     ax.grid(alpha=.2)
     ax.legend(fontsize=9)
     fig.savefig(root/'gain-map.png',dpi=150)

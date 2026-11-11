@@ -84,6 +84,9 @@ settled data coverage, consistent gain sign, and cycle standard deviation below
 of feedback starting at 3137 with DAC limits 500-3600. Run only with other hardware
 users stopped; this command writes the DAC and enables feedback after validation.
 On failure it stops feedback and restores code 3137.
+Noisy points are retried with six, then ten cycles and 3-second dwells, without
+relaxing the repeatability gate. `--resume` reuses accepted points in an interrupted
+sweep and preserves rejected recordings; it refuses to overwrite a feedback run.
 
 Calibration files can contain a `gain_table` of ordered `[code, Hz_per_code]`
 pairs. The controller linearly interpolates local gain, integrates that curve,
