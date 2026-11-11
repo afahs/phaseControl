@@ -6,14 +6,19 @@ import queue
 import threading
 import time
 import numpy as np
+from .control import LockLoss
 
-MAGIC = b"BCLK001\n"
-DTYPE = np.dtype([
+MAGIC = b"BCLK002\n"
+DTYPE_V1 = np.dtype([
     ("record", "<u8"), ("sample", "<u8"), ("t", "<f8"),
     ("phase", "<f8"), ("frequency", "<f8"), ("segment", "<u4"),
     ("amplitude", "<f4"), ("snr_db", "<f4"), ("coherence", "<f4"),
     ("clipping", "<f4"), ("age_s", "<f4"), ("dsp_s", "<f4"), ("i2c_s", "<f4"),
     ("code", "<u2"), ("state", "u1"), ("flags", "u1"),
+])
+DTYPE = np.dtype(DTYPE_V1.descr + [
+    ("phase_target", "<f8"), ("phase_error", "<f8"),
+    ("control_phase_error", "<f8"), ("lock_loss", "<u2"),
 ])
 VALID, LOCKED, GAP, SLIP, STALE = 1, 2, 4, 8, 16
 METADATA_RESERVE = 65528
@@ -53,6 +58,8 @@ class Writer:
         if self.capped or self.error:
             self.dropped += 1
             return
+        if len(values) == len(DTYPE_V1.names) - 1:
+            values = (*values, np.nan, np.nan, np.nan, 0)
         self.active[self.count] = (seq, *values)
         self.count += 1
         if self.count == self.batch_size:
@@ -76,7 +83,8 @@ class Writer:
         self.count = 0
 
     def _metadata(self, summary, final):
-        payload = dict(self.metadata, format="beacon-clock", version=1,
+        payload = dict(self.metadata, format="beacon-clock", version=2,
+                       lock_loss_bits={reason.name.lower(): int(reason) for reason in LockLoss},
                        dtype=DTYPE.descr, record_bytes=DTYPE.itemsize,
                        config=asdict(self.config), final=final, summary=summary,
                        telemetry=dict(enabled=self.config.telemetry_enabled,
@@ -140,10 +148,13 @@ def read_run(path):
     path = Path(path)
     metadata = json.loads((path / "run.json").read_text())
     with (path / "telemetry.bin").open("rb") as f:
-        if f.read(len(MAGIC)) != MAGIC or metadata.get("version") != 1:
+        magic = f.read(len(MAGIC))
+        formats = {1: (b"BCLK001\n", DTYPE_V1), 2: (MAGIC, DTYPE)}
+        expected, dtype = formats.get(metadata.get("version"), (None, None))
+        if magic != expected:
             raise ValueError("unsupported telemetry format")
     size = (path / "telemetry.bin").stat().st_size - len(MAGIC)
-    if size % DTYPE.itemsize:
+    if size % dtype.itemsize:
         raise ValueError("truncated telemetry record")
-    records = np.memmap(path / "telemetry.bin", dtype=DTYPE, mode="r", offset=len(MAGIC)) if size else np.empty(0, dtype=DTYPE)
+    records = np.memmap(path / "telemetry.bin", dtype=dtype, mode="r", offset=len(MAGIC)) if size else np.empty(0, dtype=dtype)
     return metadata, records

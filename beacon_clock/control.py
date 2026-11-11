@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 import math
 
 
@@ -8,6 +8,19 @@ class State(IntEnum):
     HOLDOVER = 2
     FAULT = 3
     MONITOR = 4
+
+
+class LockLoss(IntFlag):
+    PHASE = 1
+    FREQUENCY = 2
+    INVALID = 4
+    STALE = 8
+    GAP = 16
+    UPDATE_INTERVAL = 32
+    PHASE_RANGE = 64
+    FAULT = 128
+    STREAM_TIMEOUT = 256
+
 
 
 def phase_margin(config, delay_s):
@@ -38,11 +51,24 @@ class Controller:
         self.good = self.lock_good = 0
         self.locked = False
         self.error = 0.
+        self.target = math.nan
+        self.pending_loss = 0
+        self.loss_count = 0
+        self.loss_counts = {reason.name.lower(): 0 for reason in LockLoss}
         wn = 2 * math.pi * config.bandwidth_hz
         self.kp = 2 * config.damping * wn / (2 * math.pi)
         self.ki = wn*wn / (2 * math.pi)
 
-    def hold(self):
+    def lose_lock(self, reason):
+        if self.locked:
+            self.pending_loss |= int(reason)
+            self.loss_count += 1
+            for flag in LockLoss:
+                self.loss_counts[flag.name.lower()] += int(bool(reason & flag))
+        self.locked = False
+
+    def hold(self, reason=LockLoss.INVALID):
+        self.lose_lock(reason)
         if self.state != State.FAULT:
             self.state = State.HOLDOVER
         self.good = self.lock_good = 0
@@ -50,14 +76,14 @@ class Controller:
         self.last_t = None
 
     def fault(self):
-        self.hold()
+        self.hold(LockLoss.FAULT)
         self.state = State.FAULT
 
     def update(self, m, age=0.):
         if self.state == State.FAULT:
             return self.code
         if not m.valid or age > self.c.max_age_s or age < 0:
-            self.hold()
+            self.hold(LockLoss.INVALID if not m.valid else LockLoss.STALE)
             return self.code
         if self.state == State.HOLDOVER:
             self.state = State.ACQUIRE
@@ -65,7 +91,7 @@ class Controller:
         dt = 1 / self.c.control_hz if self.last_t is None else m.t - self.last_t
         self.last_t = m.t
         if dt <= 0 or dt > 2 / self.c.control_hz:
-            self.hold()
+            self.hold(LockLoss.UPDATE_INTERVAL)
             return self.code
         c, gain = self.c, self.cal.hz_per_code
         tolerance = max(.5, abs(gain) * .75)
@@ -77,6 +103,7 @@ class Controller:
             if self.good >= 10:
                 self.state = State.TRACK
                 self.target, self.bias, self.integral = m.phase, float(self.code), 0.
+                self.error = 0.
                 desired = self.bias
         else:
             self.error = m.phase - self.target  # deliberately NOT wrapped
@@ -90,9 +117,12 @@ class Controller:
             if self.lock_good >= 10:
                 self.locked = True
             if abs(self.error) > 1.0 or abs(m.frequency) > 2 * tolerance:
-                self.locked = False
+                reason = (LockLoss.PHASE if abs(self.error) > 1.0 else 0)
+                reason |= LockLoss.FREQUENCY if abs(m.frequency) > 2 * tolerance else 0
+                reason |= LockLoss.PHASE_RANGE if abs(self.error) > 4 * math.pi else 0
+                self.lose_lock(reason)
             if abs(self.error) > 4 * math.pi:
-                self.hold()
+                self.hold(LockLoss.PHASE_RANGE)
                 return self.code
         desired = max(c.dac_min, min(c.dac_max, desired))
         desired = max(self.code - c.max_step_codes, min(self.code + c.max_step_codes, desired))

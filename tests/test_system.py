@@ -237,7 +237,7 @@ class TelemetryTests(unittest.TestCase):
     def test_analysis_does_not_bridge_dropped_records(self):
         rows = np.empty(8, dtype=DTYPE)
         for i in range(8):
-            rows[i] = (i, *values(i))
+            rows[i] = (i, *values(i), np.nan, np.nan, np.nan, 0)
         rows[4:]["record"] += 2
         chunks = clean_segments(rows)
         self.assertEqual([len(x) for x in chunks], [4,4])

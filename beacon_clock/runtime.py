@@ -6,7 +6,7 @@ import queue
 import subprocess
 import time
 from . import __version__
-from .control import Controller, State
+from .control import Controller, State, LockLoss
 from .estimator import PilotEstimator
 from .telemetry import Writer, VALID, LOCKED, GAP, SLIP, STALE
 import numpy as np
@@ -77,7 +77,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                 block = source.get(timeout=1.)
             except queue.Empty:
                 if controller:
-                    controller.hold()
+                    controller.hold(LockLoss.STREAM_TIMEOUT)
                 estimator.reset()
                 raise RuntimeError("no SDR data for one second; stream must be restarted")
             try:
@@ -92,7 +92,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                     estimator.reset()
                     frequency_window.clear()
                     if controller:
-                        controller.hold()
+                        controller.hold(LockLoss.GAP)
                 measurement = estimator.process(block)
                 dsp_s = time.perf_counter() - block_start
                 age = time.monotonic() - block.arrival
@@ -110,7 +110,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                     invalid_causes["stale"] += int(stale)
                     frequency_window.clear()
                     if controller:
-                        controller.hold()
+                        controller.hold(LockLoss.STALE if stale else LockLoss.INVALID)
                     if stale:
                         estimator.reset()
                 else:
@@ -149,7 +149,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                                 # update() proposed a new code, but it was never
                                 # applied. Reacquire from the actual actuator.
                                 controller.code = code
-                                controller.hold()
+                                controller.hold(LockLoss.STALE)
                             stale_count += 1
                             valid = False
                             pending_flags |= STALE
@@ -165,7 +165,7 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                             writes += 1
                             if age + i2c_s > config.max_age_s:
                                 if controller:
-                                    controller.hold()
+                                    controller.hold(LockLoss.STALE)
                                 valid = False
                                 pending_flags |= STALE
                                 estimator.reset()
@@ -180,10 +180,17 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                     next_log = (math.floor(measurement.t*config.telemetry_hz)+1)/config.telemetry_hz
                     flags = (VALID if valid else 0) | (LOCKED if locked else 0)
                     flags |= pending_flags
+                    target = controller.target if controller and state == State.TRACK else math.nan
+                    phase_error = measurement.phase - target if valid else math.nan
+                    control_error = controller.error if controller and state == State.TRACK else math.nan
+                    loss_reason = controller.pending_loss if controller else 0
                     writer.append((block.sample_index, measurement.t, measurement.phase,
                                    measurement.frequency, segment, measurement.amplitude,
                                    measurement.snr_db, measurement.coherence, measurement.clipping,
-                                   age, dsp_s, i2c_s, code, int(state), flags))
+                                   age, dsp_s, i2c_s, code, int(state), flags,
+                                   target, phase_error, control_error, loss_reason))
+                    if controller:
+                        controller.pending_loss = 0
                     pending_flags = 0
                 last_state = state
             finally:
@@ -203,7 +210,10 @@ def run(config, source, path, duration, actuator=None, calibration=None,
                 failure = failure or str(exc)
         elapsed = time.monotonic() - start
         pool = getattr(source, "pool", source)
-        summary = dict(blocks=blocks, invalid_blocks=invalid, stale_blocks=stale_count,
+        summary = dict(lock_loss_events=controller.loss_count if controller else 0,
+                       lock_loss_reasons=controller.loss_counts if controller else {},
+                       pending_lock_loss=controller.pending_loss if controller else 0,
+                       blocks=blocks, invalid_blocks=invalid, stale_blocks=stale_count,
                        invalid_causes=invalid_causes,
                        slip_events=slips, updates=updates, dac_writes=writes,
                        missed_control_deadlines=missed, locked_fraction=locked_blocks/max(1, blocks),
