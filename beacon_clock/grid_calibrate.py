@@ -39,9 +39,14 @@ def cycle_gains(path, center, cycles=3, dwell=2.):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--resume', action='store_true', help='reuse accepted points; preserve rejected recordings')
     args = parser.parse_args()
     root = Path(args.output)
-    root.mkdir(parents=True, exist_ok=False)
+    if args.resume:
+        if not (root/'grid-progress.json').is_file() or (root/'feedback').exists():
+            raise ValueError('resume requires accepted points and no feedback recording')
+    else:
+        root.mkdir(parents=True, exist_ok=False)
     config = Config(apr_ppm=30, telemetry_hz=125).validate()
     def save(name, data):
         (root/name).write_text(json.dumps(data,indent=2,allow_nan=False))
@@ -61,21 +66,44 @@ def main():
             raise ValueError('clock is not compatible with 30 ppm')
         extra = dict(clock=clock, software=version_info(),
                      generator='Last user report: HP8656A 50 MHz -30 dBm unmodulated; current panel and external reference lock not independently verified')
-        save('config.json',asdict(config))
-        save('before.json',dict(dac_code=initial,**extra))
+        if not args.resume:
+            save('config.json',asdict(config))
+            save('before.json',dict(dac_code=initial,**extra))
+        elif json.loads((root/'config.json').read_text()) != asdict(config):
+            raise ValueError('resume configuration differs from saved sweep')
         centers = sorted(set(range(500,3601,100)) | {3137})
-        results = []
+        results = json.loads((root/'grid-progress.json').read_text()) if args.resume else []
+        if [r['center'] for r in results] != centers[:len(results)]:
+            raise ValueError('accepted points are not a prefix of the requested grid')
+        for result in results:
+            Calibration(**result['calibration']).validate(config)
+        report('sweep_started',resumed_points=len(results),software=version_info())
         for index,center in enumerate(centers):
+            if index < len(results):
+                continue
             move(center)
             time.sleep(2.)
             if not dac.inspect_clock()['compatible']:
                 raise ValueError('clock changed during sweep')
             report('point_start',index=index+1,total=len(centers),center=center)
-            path = root/f'code-{center}'
-            result = characterize(config,RtlSource(config),dac,path,cycles=3,step=8,dwell=2.,metadata_extra=extra)
-            Calibration.load(path/'calibration.json').validate(config)
-            repeatability = cycle_gains(path,center)
-            result.update(center=center,**repeatability)
+            accepted = False
+            for attempt,(cycles,dwell) in enumerate(((3,2.),(6,3.),(10,3.))):
+                path = root/(f'code-{center}' if attempt==0 else f'code-{center}-retry-{attempt}')
+                if path.exists():
+                    continue
+                result = characterize(config,RtlSource(config),dac,path,cycles=cycles,step=8,
+                                      dwell=dwell,metadata_extra=extra)
+                try:
+                    Calibration.load(path/'calibration.json').validate(config)
+                    repeatability = cycle_gains(path,center,cycles,dwell)
+                except ValueError as exc:
+                    report('point_rejected',center=center,attempt=attempt,reason=str(exc))
+                    continue
+                result.update(center=center,cycles=cycles,dwell_s=dwell,recording=path.name,**repeatability)
+                accepted = True
+                break
+            if not accepted:
+                raise ValueError(f'code {center} exhausted repeatability attempts')
             results.append(result)
             save('grid-progress.json',results)
             report('point_complete',center=center,**repeatability)
