@@ -60,7 +60,8 @@ def compare(paths, output, signal_hz=50e6):
                    transform=ax.get_xaxis_transform(), color='tab:red', marker='v', s=18)
         for limit in (-1, -.5, .5, 1):
             ax.axhline(limit * ns_per_rad, color='gray', linestyle='--', linewidth=.6)
-        ax.set_title(f"Trial {index+1} — locked {meta['summary']['locked_fraction']:.1%}; "
+        label = 'Mapped calibration' if (meta.get('calibration') or {}).get('gain_table') else f'Trial {index+1}'
+        ax.set_title(f"{label} — locked {meta['summary']['locked_fraction']:.1%}; "
                      f"{meta['summary']['lock_loss_events']} lock losses")
         ax.set_ylabel('Timing error (ns)')
         ax.grid(alpha=.2)
@@ -80,7 +81,7 @@ def compare(paths, output, signal_hz=50e6):
         report['spectral_windows'] = len(spectra)
         if spectra:
             freq = np.fft.rfftfreq(1024, .008)
-            spectrum_ax.loglog(freq[1:], np.mean(spectra, axis=0)[1:], label=f'Trial {index+1}')
+            spectrum_ax.loglog(freq[1:], np.mean(spectra, axis=0)[1:], label=label)
     axes[-1, 0].set_xlabel('Delivered-sample time (s)')
     fig.suptitle(f'30 ppm phase-loop comparison — timing error at {signal_hz/1e6:g} MHz\n'
                  'Green shading: controller locked; red markers: lock-loss events; gaps: unavailable phase', fontsize=12)

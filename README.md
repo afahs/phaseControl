@@ -76,6 +76,22 @@ code and linear drift, and restores the starting code. It refuses to produce a
 valid calibration when slope is unresolved. Calibration is bound to center/pilot
 frequency, expected baseband offset, sample rate, and APR.
 
+For a 30 ppm gain map, `python -m beacon_clock.grid_calibrate --output NEW_DIRECTORY`
+measures 500-3600 in 100-code steps plus 3137, using three ABBA cycles per point
+(+/-8 codes, 2-second dwells, first second excluded). It checks complete telemetry,
+settled data coverage, consistent gain sign, and cycle standard deviation below
+10% of gain magnitude. It then saves `calibration-map.json` and runs five minutes
+of feedback starting at 3137 with DAC limits 500-3600. Run only with other hardware
+users stopped; this command writes the DAC and enables feedback after validation.
+On failure it stops feedback and restores code 3137.
+
+Calibration files can contain a `gain_table` of ordered `[code, Hz_per_code]`
+pairs. The controller linearly interpolates local gain, integrates that curve,
+and inverts the resulting frequency response for each correction. This preserves
+the captured bias anchor across gain changes. The table must cover the configured
+DAC range and have a consistent nonzero sign. Scalar calibration files remain
+supported; the RF simulator currently accepts scalar calibration only.
+
 Control verifies the existing 28.8 MHz/PLLB/VCXO configuration. If it does not
 match, investigate first. `--initialize-clock` explicitly programs the repository's
 27 MHz crystal / 864 MHz PLL / divide-by-30 plan before acquisition. It disables
