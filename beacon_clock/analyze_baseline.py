@@ -14,7 +14,7 @@ def analyze(root, closed_runs):
     import matplotlib.pyplot as plt
     root = Path(root)
     out = root/'diagnostics'
-    out.mkdir(exist_ok=False)
+    out.mkdir(exist_ok=True)
     meta, rows = read_run(root/'baseline')
     if not meta['final'] or not meta['telemetry']['complete']:
         raise ValueError('baseline must be complete')
@@ -62,7 +62,8 @@ def analyze(root, closed_runs):
         ax = axes[i,0]
         residuals = []
         for ix in clean_segments(r):
-            s = r[ix]
+            # The initial FIR midpoint after a reset differs from steady cadence.
+            s = r[ix[2:]]
             if len(s) < 1251:
                 continue
             if not np.allclose(np.diff(s['t']), .008, rtol=0, atol=1e-7):
