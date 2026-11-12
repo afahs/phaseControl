@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import numpy as np
+from .telemetry import read_run, VALID
 
 
 def plot(root):
@@ -28,6 +29,28 @@ def plot(root):
     ax.grid(alpha=.2)
     ax.legend(fontsize=9)
     fig.savefig(root/'gain-map.png',dpi=150)
+    plt.close(fig)
+    meta, rows = read_run(root/'feedback')
+    fig, axes = plt.subplots(3,2,figsize=(13,9),layout='constrained',sharex='col')
+    for column,(start,end) in enumerate(((0,300),(60,70))):
+        s = rows[(rows['t']>=start)&(rows['t']<=end)]
+        axes[0,column].plot(s['t'],s['frequency'],linewidth=.5)
+        axes[0,column].axhline(0,color='gray',linewidth=.6)
+        axes[1,column].step(s['t'],s['code'],where='post',linewidth=.7)
+        axes[2,column].plot(s['t'],s['snr_db'],linewidth=.5)
+        bad = (s['flags']&VALID)==0
+        axes[2,column].scatter(s['t'][bad],s['snr_db'][bad],s=8,color='tab:red',label='Invalid measurement')
+        axes[2,column].axhline(meta['config']['min_snr_db'],color='tab:red',linestyle='--',linewidth=.7)
+        axes[0,column].set_title('Full five-minute run' if column==0 else '10-second detail')
+        axes[2,column].set_xlabel('Delivered-sample time (s)')
+        for row,label in enumerate(('Frequency error (Hz)','DAC code','Tone-fit SNR (dB)')):
+            axes[row,column].set_ylabel(label)
+            axes[row,column].grid(alpha=.2)
+    axes[2,1].legend(fontsize=8)
+    captured = np.isfinite(rows['phase_target']).any()
+    fig.suptitle(f"Mapped-calibration feedback: {meta['summary']['locked_fraction']:.1%} locked\n"
+                 + ('Phase target captured' if captured else 'No phase target captured; acquisition and holdover only'))
+    fig.savefig(root/'feedback-status.png',dpi=150)
     plt.close(fig)
     print(json.dumps(dict(points=len(points),gain_min=float(gain.min()),
                           gain_max=float(gain.max()),
