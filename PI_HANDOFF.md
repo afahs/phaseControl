@@ -126,15 +126,17 @@ The hashes should match and the remote status should be empty.
   the owner reports an external rubidium reference feeding only that generator,
   and a Tektronix TDS2012 scope. The rubidium model/frequency are unspecified;
   modulation settings need bench verification.
-- Latest observed DAC code is 3137; Si5351B APR is 30 ppm. Normal corrections
+- Latest observed DAC code is 3118; Si5351B APR is 30 ppm. Normal corrections
   use volatile DAC writes. Do not reset/reinitialize the clock during acquisition.
 - No startup service is installed/enabled. Add startup, automatic restarts, and
   health checks after interactive phase-tracking and acceptance gates pass.
 - Git currently deploys source files only; it does not restart applications or install dependencies.
-- Latest local calibration: `~/clock-runs/local3137-20261111/calibration/calibration.json`,
-  -0.789006 Hz/code at 30 ppm, measured codes 3129-3145. The subsequent five-minute
-  receive-only baseline finished with DAC 3137 at both endpoints and zero writes.
-  Feedback remains stopped. See the November 11 update in `docs/validation.md`.
+- Latest calibration map: `~/clock-runs/grid30-20261111/calibration-map.json` with
+  `feedback-config.json` in the same directory (30 ppm, DAC limits 500-3600).
+  Thirty-three points cover 500-3600 every 100 codes plus 3137. The subsequent
+  five-minute mapped feedback run **never acquired lock** (311 invalid blocks,
+  repeated acquisition/holdover). Feedback is stopped at code 3118. Do not treat
+  the static map as a validated dynamic loop design. See `docs/validation.md`.
 - GitHub hosts source history. Scheduled deployment and CI remain unconfigured.
 - Router DHCP reservation for `192.168.0.145` was recommended but has not been verified or configured.
 - The placeholder Pi directory `new-project` can be renamed when the project is defined;

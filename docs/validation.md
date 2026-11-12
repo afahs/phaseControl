@@ -1,5 +1,48 @@
 # Implementation and bench validation
 
+## November 11, 2026: 100-code gain map and failed acquisition
+
+Evidence: `~/clock-runs/grid30-20261111`, also copied under local `data/`.
+Thirty-three local calibrations cover 500-3600 every 100 codes plus 3137, at APR
+30 ppm. Each uses +/-8 codes, three ABBA cycles and 2-second dwells with the first
+second excluded. Codes 2200, 2600, and 3500 failed the 10% relative cycle-spread
+gate initially and passed six-cycle, 3-second-dwell retries. Rejected recordings
+are retained. Accepted cycle spread ranges up to 9.99%; fine differences between
+neighboring points are not all resolved. This is a local differential-gain map,
+not a precision absolute frequency-versus-code or dynamic response measurement.
+
+Fitted gains span -0.89347 to -0.71578 Hz/code; at 3137 the fit is -0.783008
+Hz/code. The controller integrates linearly interpolated local gains and inverts
+that response for corrections, preserving the frequency reference at its bias
+code. Configured output limits 500-3600 remain within measured map coverage.
+The delay field is still the unmeasured 104 ms buffering budget. All 33 entries
+are embedded in the feedback run's metadata.
+
+The requested 300-second feedback run started at 3137, completed without a runtime
+exception, but **never entered TRACK or reported lock**. It logged all 37,500
+records with no drops, stale blocks, or missed scheduled updates. There were 311
+invalid blocks (SNR gate; startup also coherence/ambiguity), 1,996 DAC writes,
+and repeated ACQUIRE/HOLDOVER transitions. DAC codes ranged 3103-3137, ending
+at 3118. There is no captured phase target, so no valid phase-lock timing RMS
+can be reported. Zero lock-loss events here means lock was never acquired.
+
+Replay of the recorded measurements reproduced every DAC code and controller
+state. Analytic positive/negative nonlinear gain-map inversion, scalar equivalence,
+range/step limits, and nonlinear-plant acquisition tests passed. This checks
+software arithmetic, not the physical response model. No measurement identifies
+the underlying cause of the acquisition oscillation yet. Static gain calibration
+has not established adequate acquisition stability, actuator settling, or delay.
+The earlier scalar runs had 75-81% locked time; this run performed substantially
+worse, with different starting conditions and elapsed bench time. It is not a
+controlled isolation of the map's causal effect.
+
+Plots: `gain-map.png` shows cycle spread; `feedback-status.png` shows frequency,
+DAC activity, and tone-fit quality, including a 60-70-second detail. Feedback
+remains stopped, DAC 3118 and nominal 28.8 MHz/30 ppm verified after the run.
+Source was developed/committed locally and deployed through Git. The original
+30-test suite and four Pi map tests passed before acquisition; two additional
+resume/gating tests passed before resuming the sweep.
+
 ## November 11, 2026: operating-point calibration and fixed-DAC baseline
 
 Evidence: `~/clock-runs/local3137-20261111` on `project-pi`, copied locally under
