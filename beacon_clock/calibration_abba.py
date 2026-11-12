@@ -18,6 +18,7 @@ def main():
     p.add_argument('--output',required=True)
     p.add_argument('--initial-code',type=int,default=2048)
     p.add_argument('--duration',type=float,default=300.)
+    p.add_argument('--order',nargs='+',choices=('old','new'),default=['old','new','new','old'])
     args=p.parse_args()
     c=Config(apr_ppm=30,telemetry_hz=125,dac_min=500,dac_max=3600).validate()
     if not c.dac_min<=args.initial_code<=c.dac_max or not 0<args.duration<=3600:
@@ -33,10 +34,10 @@ def main():
     save('config.json',asdict(c))
     for label,cal in calibrations.items():
         save(f'{label}-calibration.json',asdict(cal))
-    protocol=dict(order=['old','new','new','old'],duration_s=args.duration,
+    protocol=dict(order=args.order,duration_s=args.duration,
                   initial_code=args.initial_code,settle_s=5.,software=version_info(),
                   generator='HP8656A; last reported 50 MHz, -30 dBm, no modulation; current panel/reference lock unverified',
-                  comparison='Same software, config, initial code, settling and SDR settings; sequential ABBA reduces but does not eliminate bench drift')
+                  comparison='Same software, config, initial code, settling and SDR settings; sequential runs do not eliminate bench drift')
     save('protocol.json',protocol)
     summaries=[]
     dac=Dac(c)
